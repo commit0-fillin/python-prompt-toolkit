@@ -56,25 +56,87 @@ class Vt100Parser:
         """
         Start the parser coroutine.
         """
-        pass
+        self._input_parser = self._input_parser_generator()
+        next(self._input_parser)  # Prime the coroutine.
 
     def _get_match(self, prefix: str) -> None | Keys | tuple[Keys, ...]:
         """
         Return the key (or keys) that maps to this prefix.
         """
-        pass
+        if prefix in ANSI_SEQUENCES:
+            return ANSI_SEQUENCES[prefix]
+        
+        # Check if it matches the CPR response.
+        if _cpr_response_re.match(prefix):
+            return Keys.CPRResponse
+
+        # Check if it matches a mouse event.
+        if _mouse_event_re.match(prefix):
+            return Keys.Vt100MouseEvent
+
+        return None
 
     def _input_parser_generator(self) -> Generator[None, str | _Flush, None]:
         """
         Coroutine (state machine) for the input parser.
         """
-        pass
+        prefix = ''
+        retry = False
+        flush = False
+
+        while True:
+            flush = False
+
+            if retry:
+                retry = False
+            else:
+                # Get next character.
+                c = yield
+
+                if isinstance(c, _Flush):
+                    flush = True
+                else:
+                    prefix += c
+
+            # If we have some data, check for matches.
+            if prefix:
+                is_prefix_of_longer_match = _IS_PREFIX_OF_LONGER_MATCH_CACHE[prefix]
+                match = self._get_match(prefix)
+
+                if flush:
+                    is_prefix_of_longer_match = False
+
+                # Exact matches found, call handlers.
+                if match is not None:
+                    self._call_handler(match, prefix)
+                    prefix = ''
+
+                # No exact match found.
+                elif is_prefix_of_longer_match and not flush:
+                    # No exact match, but it is a prefix of a longer match.
+                    retry = True
+                else:
+                    # No exact match, and no way we can match anything longer.
+                    # Call the input_processor.
+                    self._call_handler(prefix[0], prefix[0])
+                    prefix = prefix[1:]
+                    retry = True
+
+            # If `flush` was called, but we still have data in the buffer,
+            # retry parsing.
+            if flush and prefix:
+                retry = True
 
     def _call_handler(self, key: str | Keys | tuple[Keys, ...], insert_text: str) -> None:
         """
         Callback to handler.
         """
-        pass
+        if isinstance(key, tuple):
+            for k in key:
+                self._call_handler(k, insert_text)
+        else:
+            if insert_text:
+                self.feed_key_callback(KeyPress(key, insert_text))
 
     def feed(self, data: str) -> None:
         """
@@ -82,7 +144,8 @@ class Vt100Parser:
 
         :param data: Input string (unicode).
         """
-        pass
+        for c in data:
+            self._input_parser.send(c)
 
     def flush(self) -> None:
         """
@@ -96,10 +159,11 @@ class Vt100Parser:
         timeout, and processes everything that's still in the buffer as-is, so
         without assuming any characters will follow.
         """
-        pass
+        self._input_parser.send(_Flush())
 
     def feed_and_flush(self, data: str) -> None:
         """
         Wrapper around ``feed`` and ``flush``.
         """
-        pass
+        self.feed(data)
+        self.flush()
