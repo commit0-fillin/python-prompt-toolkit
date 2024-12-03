@@ -32,7 +32,18 @@ def run_in_terminal(func: Callable[[], _T], render_cli_done: bool=False, in_exec
 
     :returns: A `Future`.
     """
-    pass
+    async def async_func():
+        app = get_app_or_none()
+        if app is None:
+            return await run_in_executor_with_context(func)
+
+        async with in_terminal(render_cli_done):
+            if in_executor:
+                return await run_in_executor_with_context(func)
+            else:
+                return func()
+
+    return ensure_future(async_func())
 
 @asynccontextmanager
 async def in_terminal(render_cli_done: bool=False) -> AsyncGenerator[None, None]:
@@ -47,4 +58,23 @@ async def in_terminal(render_cli_done: bool=False) -> AsyncGenerator[None, None]
                 call_some_function()
                 await call_some_async_function()
     """
-    pass
+    app = get_app()
+    if render_cli_done:
+        app._redraw(render_as_done=True)
+
+    app.output.flush()
+    app._running_in_terminal = True
+
+    # Disable rendering
+    previous_invalidate = app.invalidate
+    app.invalidate = lambda: None
+
+    try:
+        with app.input.detach(), app.output.detach():
+            yield
+    finally:
+        app._running_in_terminal = False
+        app.invalidate = previous_invalidate
+        app.renderer.reset()
+        app._request_absolute_cursor_position()
+        app._redraw()
