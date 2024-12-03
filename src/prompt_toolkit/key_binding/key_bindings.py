@@ -75,12 +75,13 @@ class KeyBindingsBase(metaclass=ABCMeta):
     """
 
     @abstractproperty
+    @property
     def _version(self) -> Hashable:
         """
         For cache invalidation. - This should increase every time that
         something changes.
         """
-        pass
+        return hash(tuple(self.bindings))
 
     @abstractmethod
     def get_bindings_for_keys(self, keys: KeysTuple) -> list[Binding]:
@@ -91,7 +92,7 @@ class KeyBindingsBase(metaclass=ABCMeta):
 
         :param keys: tuple of keys.
         """
-        pass
+        return [binding for binding in self.bindings if binding.keys == keys]
 
     @abstractmethod
     def get_bindings_starting_with_keys(self, keys: KeysTuple) -> list[Binding]:
@@ -103,16 +104,17 @@ class KeyBindingsBase(metaclass=ABCMeta):
 
         :param keys: tuple of keys.
         """
-        pass
+        return [binding for binding in self.bindings if binding.keys[:len(keys)] == keys and len(binding.keys) > len(keys)]
 
     @abstractproperty
+    @property
     def bindings(self) -> list[Binding]:
         """
         List of `Binding` objects.
         (These need to be exposed, so that `KeyBindings` objects can be merged
         together.)
         """
-        pass
+        return self._bindings
 T = TypeVar('T', bound=Union[KeyHandlerCallable, Binding])
 
 class KeyBindings(KeyBindingsBase):
@@ -162,7 +164,15 @@ class KeyBindings(KeyBindingsBase):
         :param record_in_macro: Record these key bindings when a macro is
             being recorded. (True by default.)
         """
-        pass
+        def decorator(func: T) -> T:
+            self._bindings.append(
+                Binding(keys=keys, handler=func, filter=filter, eager=eager,
+                        is_global=is_global, save_before=save_before,
+                        record_in_macro=record_in_macro)
+            )
+            self.__version += 1  # Increase version to invalidate cache
+            return func
+        return decorator
 
     def remove(self, *args: Keys | str | KeyHandlerCallable) -> None:
         """
@@ -178,7 +188,17 @@ class KeyBindings(KeyBindingsBase):
             remove(handler)  # Pass handler.
             remove('c-x', 'c-a')  # Or pass the key bindings.
         """
-        pass
+        if len(args) == 1 and callable(args[0]):
+            handler = args[0]
+            self._bindings = [b for b in self._bindings if b.handler != handler]
+        else:
+            keys = tuple(_parse_key(k) for k in args)
+            self._bindings = [b for b in self._bindings if b.keys != keys]
+        
+        if len(self._bindings) == len(args):
+            raise ValueError("Binding not found")
+        
+        self.__version += 1  # Increase version to invalidate cache
     add_binding = add
     remove_binding = remove
 
@@ -207,14 +227,27 @@ def _parse_key(key: Keys | str) -> str | Keys:
     """
     Replace key by alias and verify whether it's a valid one.
     """
-    pass
+    if isinstance(key, Keys):
+        return key
+    
+    if key in KEY_ALIASES:
+        return KEY_ALIASES[key]
+    
+    if len(key) != 1:
+        raise ValueError(f"Invalid key: {key}")
+    
+    return key
 
 def key_binding(filter: FilterOrBool=True, eager: FilterOrBool=False, is_global: FilterOrBool=False, save_before: Callable[[KeyPressEvent], bool]=lambda event: True, record_in_macro: FilterOrBool=True) -> Callable[[KeyHandlerCallable], Binding]:
     """
     Decorator that turn a function into a `Binding` object. This can be added
     to a `KeyBindings` object when a key binding is assigned.
     """
-    pass
+    def decorator(func: KeyHandlerCallable) -> Binding:
+        return Binding(keys=(), handler=func, filter=filter, eager=eager,
+                       is_global=is_global, save_before=save_before,
+                       record_in_macro=record_in_macro)
+    return decorator
 
 class _Proxy(KeyBindingsBase):
     """
@@ -230,7 +263,10 @@ class _Proxy(KeyBindingsBase):
         If `self._last_version` is outdated, then this should update
         the version and `self._bindings2`.
         """
-        pass
+        current_version = self._get_version()
+        if self._last_version != current_version:
+            self._last_version = current_version
+            self._bindings2 = self._get_bindings()
 
 class ConditionalKeyBindings(_Proxy):
     """
@@ -257,7 +293,15 @@ class ConditionalKeyBindings(_Proxy):
 
     def _update_cache(self) -> None:
         """If the original key bindings was changed. Update our copy version."""
-        pass
+        current_version = self.key_bindings._version
+        if self._last_version != current_version:
+            self._last_version = current_version
+            self._bindings2 = KeyBindings()
+            for b in self.key_bindings.bindings:
+                self._bindings2.add(*b.keys, filter=self.filter & b.filter,
+                                    eager=b.eager, is_global=b.is_global,
+                                    save_before=b.save_before,
+                                    record_in_macro=b.record_in_macro)(b.handler)
 
 class _MergedKeyBindings(_Proxy):
     """
@@ -278,7 +322,15 @@ class _MergedKeyBindings(_Proxy):
         If one of the original registries was changed. Update our merged
         version.
         """
-        pass
+        current_version = tuple(r._version for r in self.registries)
+        if self._last_version != current_version:
+            self._last_version = current_version
+            self._bindings2 = KeyBindings()
+            for registry in self.registries:
+                for b in registry.bindings:
+                    self._bindings2.add(*b.keys, filter=b.filter, eager=b.eager,
+                                        is_global=b.is_global, save_before=b.save_before,
+                                        record_in_macro=b.record_in_macro)(b.handler)
 
 def merge_key_bindings(bindings: Sequence[KeyBindingsBase]) -> _MergedKeyBindings:
     """
@@ -288,7 +340,7 @@ def merge_key_bindings(bindings: Sequence[KeyBindingsBase]) -> _MergedKeyBinding
 
         bindings = merge_key_bindings([bindings1, bindings2, ...])
     """
-    pass
+    return _MergedKeyBindings(bindings)
 
 class DynamicKeyBindings(_Proxy):
     """
@@ -318,4 +370,12 @@ class GlobalOnlyKeyBindings(_Proxy):
         If one of the original registries was changed. Update our merged
         version.
         """
-        pass
+        current_version = self.key_bindings._version
+        if self._last_version != current_version:
+            self._last_version = current_version
+            self._bindings2 = KeyBindings()
+            for b in self.key_bindings.bindings:
+                if b.is_global():
+                    self._bindings2.add(*b.keys, filter=b.filter, eager=b.eager,
+                                        is_global=True, save_before=b.save_before,
+                                        record_in_macro=b.record_in_macro)(b.handler)
