@@ -35,7 +35,7 @@ class Processor(metaclass=ABCMeta):
 
         :param transformation_input: :class:`.TransformationInput` object.
         """
-        pass
+        return Transformation(transformation_input.fragments)
 SourceToDisplay = Callable[[int], int]
 DisplayToSource = Callable[[int], int]
 
@@ -95,11 +95,16 @@ class HighlightSearchProcessor(Processor):
     _classname = 'search'
     _classname_current = 'search.current'
 
+    def __init__(self) -> None:
+        self._search_text = ''
+        self._last_search_position = 0
+
     def _get_search_text(self, buffer_control: BufferControl) -> str:
         """
         The text we are searching for.
         """
-        pass
+        search_state = buffer_control.search_state
+        return search_state.text
 
 class HighlightIncrementalSearchProcessor(HighlightSearchProcessor):
     """
@@ -117,7 +122,8 @@ class HighlightIncrementalSearchProcessor(HighlightSearchProcessor):
         """
         The text we are searching for.
         """
-        pass
+        search_buffer = get_app().layout.search_buffer
+        return search_buffer.text if search_buffer else ''
 
 class HighlightSelectionProcessor(Processor):
     """
@@ -156,7 +162,30 @@ class HighlightMatchingBracketProcessor(Processor):
         """
         Return a list of (row, col) tuples that need to be highlighted.
         """
-        pass
+        cursor_row, cursor_col = document.translate_index_to_position(document.cursor_position)
+        
+        def get_matching_bracket_position(row: int, col: int) -> tuple[int, int] | None:
+            line = document.lines[row]
+            if col < len(line):
+                bracket = line[col]
+                if bracket in '([{<':
+                    for i in range(row, min(row + self.max_cursor_distance, document.line_count)):
+                        for j in range(len(document.lines[i])):
+                            if document.lines[i][j] == self._closing_braces[self.chars.index(bracket)]:
+                                return i, j
+                elif bracket in ')]}>':
+                    for i in range(row, max(row - self.max_cursor_distance, -1), -1):
+                        for j in range(len(document.lines[i]) - 1, -1, -1):
+                            if document.lines[i][j] == self.chars[self._closing_braces.index(bracket)]:
+                                return i, j
+            return None
+        
+        positions = []
+        cursor_bracket_pos = get_matching_bracket_position(cursor_row, cursor_col)
+        if cursor_bracket_pos:
+            positions.extend([(cursor_row, cursor_col), cursor_bracket_pos])
+        
+        return positions
 
 class DisplayMultipleCursors(Processor):
     """
@@ -320,7 +349,7 @@ def merge_processors(processors: list[Processor]) -> Processor:
     """
     Merge multiple `Processor` objects into one.
     """
-    pass
+    return _MergedProcessor(processors)
 
 class _MergedProcessor(Processor):
     """
