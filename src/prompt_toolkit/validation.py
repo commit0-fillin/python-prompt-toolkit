@@ -47,7 +47,12 @@ class Validator(metaclass=ABCMeta):
 
         :param document: :class:`~prompt_toolkit.document.Document` instance.
         """
-        pass
+        if not self.func(document.text):
+            if self.move_cursor_to_end:
+                cursor_position = len(document.text)
+            else:
+                cursor_position = document.cursor_position
+            raise ValidationError(cursor_position=cursor_position, message=self.error_message)
 
     async def validate_async(self, document: Document) -> None:
         """
@@ -55,7 +60,7 @@ class Validator(metaclass=ABCMeta):
         This function can be overloaded in order to provide an asynchronous
         implementation.
         """
-        pass
+        self.validate(document)
 
     @classmethod
     def from_callable(cls, validate_func: Callable[[str], bool], error_message: str='Invalid input', move_cursor_to_end: bool=False) -> Validator:
@@ -74,7 +79,7 @@ class Validator(metaclass=ABCMeta):
         :param move_cursor_to_end: Move the cursor to the end of the input, if
             the input is invalid.
         """
-        pass
+        return _ValidatorFromCallable(validate_func, error_message, move_cursor_to_end)
 
 class _ValidatorFromCallable(Validator):
     """
@@ -103,7 +108,7 @@ class ThreadedValidator(Validator):
         """
         Run the `validate` function in a thread.
         """
-        pass
+        await run_in_executor_with_context(lambda: self.validator.validate(document))
 
 class DummyValidator(Validator):
     """
