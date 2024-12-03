@@ -61,7 +61,7 @@ class Dimension:
         Return a :class:`.Dimension` with an exact size. (min, max and
         preferred set to ``amount``).
         """
-        pass
+        return cls(min=amount, max=amount, preferred=amount)
 
     @classmethod
     def zero(cls) -> Dimension:
@@ -69,11 +69,11 @@ class Dimension:
         Create a dimension that represents a zero size. (Used for 'invisible'
         controls.)
         """
-        pass
+        return cls(min=0, max=0, preferred=0)
 
     def is_zero(self) -> bool:
         """True if this `Dimension` represents a zero size."""
-        pass
+        return self.max == 0
 
     def __repr__(self) -> str:
         fields = []
@@ -91,27 +91,53 @@ def sum_layout_dimensions(dimensions: list[Dimension]) -> Dimension:
     """
     Sum a list of :class:`.Dimension` instances.
     """
-    pass
+    min_sum = sum(d.min for d in dimensions)
+    max_sum = sum(d.max for d in dimensions)
+    preferred_sum = sum(d.preferred for d in dimensions)
+    weight_sum = sum(d.weight for d in dimensions)
+
+    return Dimension(
+        min=min_sum,
+        max=max_sum,
+        preferred=preferred_sum,
+        weight=weight_sum
+    )
 
 def max_layout_dimensions(dimensions: list[Dimension]) -> Dimension:
     """
     Take the maximum of a list of :class:`.Dimension` instances.
     Used when we have a HSplit/VSplit, and we want to get the best width/height.)
     """
-    pass
+    if not dimensions:
+        return Dimension.zero()
+
+    return Dimension(
+        min=max(d.min for d in dimensions),
+        max=max(d.max for d in dimensions),
+        preferred=max(d.preferred for d in dimensions),
+        weight=max(d.weight for d in dimensions)
+    )
 AnyDimension = Union[None, int, Dimension, Callable[[], Any]]
 
 def to_dimension(value: AnyDimension) -> Dimension:
     """
     Turn the given object into a `Dimension` object.
     """
-    pass
+    if value is None:
+        return Dimension()
+    if isinstance(value, int):
+        return Dimension.exact(value)
+    if isinstance(value, Dimension):
+        return value
+    if callable(value):
+        return to_dimension(value())
+    raise TypeError(f"Invalid dimension value: {value}")
 
 def is_dimension(value: object) -> TypeGuard[AnyDimension]:
     """
     Test whether the given value could be a valid dimension.
     (For usage in an assertion. It's not guaranteed in case of a callable.)
     """
-    pass
+    return value is None or isinstance(value, (int, Dimension)) or callable(value)
 D = Dimension
 LayoutDimension = Dimension
