@@ -16,7 +16,9 @@ def run_in_executor_with_context(func: Callable[..., _T], *args: Any, loop: asyn
 
     See also: https://bugs.python.org/issue34014
     """
-    pass
+    loop = loop or asyncio.get_event_loop()
+    ctx = contextvars.copy_context()
+    return loop.run_in_executor(None, lambda: ctx.run(func, *args))
 
 def call_soon_threadsafe(func: Callable[[], None], max_postpone_time: float | None=None, loop: asyncio.AbstractEventLoop | None=None) -> None:
     """
@@ -35,10 +37,27 @@ def call_soon_threadsafe(func: Callable[[], None], max_postpone_time: float | No
     However, we want to set a deadline value, for when the rendering should
     happen. (The UI should stay responsive).
     """
-    pass
+    loop = loop or asyncio.get_event_loop()
+
+    def schedule_func() -> None:
+        if max_postpone_time is None:
+            func()
+        else:
+            deadline = time.time() + max_postpone_time
+            def postponed_func() -> None:
+                if time.time() < deadline:
+                    loop.call_soon(postponed_func)
+                else:
+                    func()
+            postponed_func()
+
+    loop.call_soon_threadsafe(schedule_func)
 
 def get_traceback_from_context(context: dict[str, Any]) -> TracebackType | None:
     """
     Get the traceback object from the context.
     """
-    pass
+    exception = context.get('exception')
+    if exception is None:
+        return None
+    return exception.__traceback__
