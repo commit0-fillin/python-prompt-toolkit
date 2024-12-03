@@ -24,7 +24,7 @@ class CursorShapeConfig(ABC):
         """
         Return the cursor shape to be used in the current state.
         """
-        pass
+        return self.cursor_shape
 AnyCursorShapeConfig = Union[CursorShape, CursorShapeConfig, None]
 
 class SimpleCursorShapeConfig(CursorShapeConfig):
@@ -50,4 +50,11 @@ def to_cursor_shape_config(value: AnyCursorShapeConfig) -> CursorShapeConfig:
     Take a `CursorShape` instance or `CursorShapeConfig` and turn it into a
     `CursorShapeConfig`.
     """
-    pass
+    if isinstance(value, CursorShapeConfig):
+        return value
+    elif isinstance(value, CursorShape):
+        return SimpleCursorShapeConfig(value)
+    elif value is None:
+        return SimpleCursorShapeConfig(CursorShape._NEVER_CHANGE)
+    else:
+        raise TypeError(f"Invalid cursor shape config: {value}")
