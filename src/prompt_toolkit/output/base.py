@@ -276,5 +276,8 @@ class DummyOutput(Output):
     """
 
     def fileno(self) -> int:
-        """There is no sensible default for fileno()."""
-        raise NotImplementedError("DummyOutput does not support fileno()")
+        """
+        DummyOutput doesn't have a real file descriptor, so we return a dummy value.
+        This method is implemented to satisfy the abstract method requirement.
+        """
+        return -1
