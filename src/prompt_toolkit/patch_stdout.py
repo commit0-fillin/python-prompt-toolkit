@@ -47,7 +47,14 @@ def patch_stdout(raw: bool=False) -> Generator[None, None, None]:
     :param raw: (`bool`) When True, vt100 terminal escape sequences are not
                 removed/escaped.
     """
-    pass
+    original_stdout = sys.stdout
+    try:
+        proxy = StdoutProxy(raw=raw)
+        sys.stdout = proxy
+        yield
+    finally:
+        proxy.close()
+        sys.stdout = original_stdout
 
 class _Done:
     """Sentinel value for stopping the stdout proxy."""
@@ -94,21 +101,35 @@ class StdoutProxy:
         This will terminate the write thread, make sure everything is flushed
         and wait for the write thread to finish.
         """
-        pass
+        if not self.closed:
+            self._flush_queue.put(_Done())
+            self._flush_thread.join()
+            self.flush()
+            self.closed = True
 
     def _get_app_loop(self) -> asyncio.AbstractEventLoop | None:
         """
         Return the event loop for the application currently running in our
         `AppSession`.
         """
-        pass
+        app = self.app_session.app
+        if app and app.is_running:
+            return app.loop
+        return None
 
     def _write_and_flush(self, loop: asyncio.AbstractEventLoop | None, text: str) -> None:
         """
         Write the given text to stdout and flush.
         If an application is running, use `run_in_terminal`.
         """
-        pass
+        def write_and_flush() -> None:
+            self._output.write_raw(text)
+            self._output.flush()
+
+        if loop is None:
+            write_and_flush()
+        else:
+            run_in_terminal(write_and_flush)
 
     def _write(self, data: str) -> None:
         """
@@ -121,10 +142,27 @@ class StdoutProxy:
               command line. Therefor, we have a little buffer which holds the
               text until a newline is written to stdout.
         """
-        pass
+        if not self.raw:
+            data = data.replace('\001', '').replace('\002', '')
+
+        with self._lock:
+            self._buffer.append(data)
+
+            if '\n' in data:
+                text = ''.join(self._buffer)
+                self._buffer = []
+                self._flush_queue.put(text)
 
     def flush(self) -> None:
         """
         Flush buffered output.
         """
-        pass
+        with self._lock:
+            text = ''.join(self._buffer)
+            self._buffer = []
+
+        if text:
+            self._flush_queue.put(text)
+
+        # Wait for the flush to happen.
+        self._flush_queue.join()
