@@ -35,7 +35,27 @@ def to_formatted_text(value: AnyFormattedText, style: str='', auto_convert: bool
     :param auto_convert: If `True`, also accept other types, and convert them
         to a string first.
     """
-    pass
+    if auto_convert and not isinstance(value, (str, MagicFormattedText, StyleAndTextTuples, Callable)):
+        value = str(value)
+
+    if isinstance(value, str):
+        return FormattedText([(style, value)])
+    elif isinstance(value, MagicFormattedText):
+        result = value.__pt_formatted_text__()
+    elif isinstance(value, StyleAndTextTuples):
+        result = value
+    elif callable(value):
+        return to_formatted_text(value(), style=style)
+    elif value is None:
+        result = []
+    else:
+        raise ValueError(f"Invalid type for formatted text: {type(value)}")
+
+    # Apply given style.
+    if style:
+        result = [(style + ' ' + item_style, *rest) for item_style, *rest in result]
+
+    return FormattedText(result)
 
 def is_formatted_text(value: object) -> TypeGuard[AnyFormattedText]:
     """
@@ -43,7 +63,13 @@ def is_formatted_text(value: object) -> TypeGuard[AnyFormattedText]:
     statements).
     In case of a callable, it doesn't check the return type.
     """
-    pass
+    return (
+        isinstance(value, str)
+        or isinstance(value, MagicFormattedText)
+        or isinstance(value, StyleAndTextTuples)
+        or callable(value)
+        or value is None
+    )
 
 class FormattedText(StyleAndTextTuples):
     """
@@ -78,4 +104,19 @@ def merge_formatted_text(items: Iterable[AnyFormattedText]) -> AnyFormattedText:
     """
     Merge (Concatenate) several pieces of formatted text together.
     """
-    pass
+    def _merge_generator() -> Iterable[OneStyleAndTextTuple]:
+        for i in items:
+            if isinstance(i, str):
+                yield ('', i)
+            elif isinstance(i, MagicFormattedText):
+                yield from i.__pt_formatted_text__()
+            elif isinstance(i, StyleAndTextTuples):
+                yield from i
+            elif callable(i):
+                yield from to_formatted_text(i())
+            elif i is None:
+                pass
+            else:
+                raise ValueError(f"Invalid formatted text: {i!r}")
+
+    return FormattedText(list(_merge_generator()))
