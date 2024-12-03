@@ -14,7 +14,8 @@ def to_plain_text(value: AnyFormattedText) -> str:
     """
     Turn any kind of formatted text back into plain text.
     """
-    pass
+    fragments = to_formatted_text(value)
+    return ''.join(text for _, text in fragments)
 
 def fragment_list_len(fragments: StyleAndTextTuples) -> int:
     """
@@ -23,7 +24,7 @@ def fragment_list_len(fragments: StyleAndTextTuples) -> int:
     :param fragments: List of ``(style_str, text)`` or
         ``(style_str, text, mouse_handler)`` tuples.
     """
-    pass
+    return sum(len(text) for _, text, *_ in fragments)
 
 def fragment_list_width(fragments: StyleAndTextTuples) -> int:
     """
@@ -33,7 +34,7 @@ def fragment_list_width(fragments: StyleAndTextTuples) -> int:
     :param fragments: List of ``(style_str, text)`` or
         ``(style_str, text, mouse_handler)`` tuples.
     """
-    pass
+    return sum(get_cwidth(text) for _, text, *_ in fragments)
 
 def fragment_list_to_text(fragments: StyleAndTextTuples) -> str:
     """
@@ -42,7 +43,7 @@ def fragment_list_to_text(fragments: StyleAndTextTuples) -> str:
     :param fragments: List of ``(style_str, text)`` or
         ``(style_str, text, mouse_handler)`` tuples.
     """
-    pass
+    return ''.join(text for _, text, *_ in fragments)
 
 def split_lines(fragments: Iterable[OneStyleAndTextTuple]) -> Iterable[StyleAndTextTuples]:
     """
@@ -52,4 +53,14 @@ def split_lines(fragments: Iterable[OneStyleAndTextTuple]) -> Iterable[StyleAndT
     :param fragments: Iterable of ``(style_str, text)`` or
         ``(style_str, text, mouse_handler)`` tuples.
     """
-    pass
+    line: StyleAndTextTuples = []
+    for style, text, *rest in fragments:
+        parts = text.split('\n')
+        for part in parts[:-1]:
+            line.append((style, part, *rest))
+            yield line
+            line = []
+        if parts[-1]:
+            line.append((style, parts[-1], *rest))
+    if line:
+        yield line
