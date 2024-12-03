@@ -24,7 +24,9 @@ class Output(metaclass=ABCMeta):
     @abstractmethod
     def fileno(self) -> int:
         """Return the file descriptor to which we can write for the output."""
-        pass
+        if self.stdout:
+            return self.stdout.fileno()
+        raise NotImplementedError("fileno() is not implemented for this output")
 
     @abstractmethod
     def encoding(self) -> str:
@@ -34,32 +36,39 @@ class Output(metaclass=ABCMeta):
         output the data, so that the UI can provide alternatives, when
         required.)
         """
-        pass
+        if self.stdout:
+            return self.stdout.encoding
+        return 'utf-8'
 
     @abstractmethod
     def write(self, data: str) -> None:
         """Write text (Terminal escape sequences will be removed/escaped.)"""
-        pass
+        if self.stdout:
+            self.stdout.write(data)
 
     @abstractmethod
     def write_raw(self, data: str) -> None:
         """Write text."""
-        pass
+        if self.stdout:
+            self.stdout.write(data)
 
     @abstractmethod
     def set_title(self, title: str) -> None:
         """Set terminal title."""
+        # This is a stub. The actual implementation would depend on the terminal type.
         pass
 
     @abstractmethod
     def clear_title(self) -> None:
         """Clear title again. (or restore previous title.)"""
+        # This is a stub. The actual implementation would depend on the terminal type.
         pass
 
     @abstractmethod
     def flush(self) -> None:
         """Write to output stream and flush."""
-        pass
+        if self.stdout:
+            self.stdout.flush()
 
     @abstractmethod
     def erase_screen(self) -> None:
@@ -67,34 +76,34 @@ class Output(metaclass=ABCMeta):
         Erases the screen with the background color and moves the cursor to
         home.
         """
-        pass
+        self.write_raw("\x1b[2J\x1b[H")
 
     @abstractmethod
     def enter_alternate_screen(self) -> None:
         """Go to the alternate screen buffer. (For full screen applications)."""
-        pass
+        self.write_raw("\x1b[?1049h")
 
     @abstractmethod
     def quit_alternate_screen(self) -> None:
         """Leave the alternate screen buffer."""
-        pass
+        self.write_raw("\x1b[?1049l")
 
     @abstractmethod
     def enable_mouse_support(self) -> None:
         """Enable mouse."""
-        pass
+        self.write_raw("\x1b[?1000h")
 
     @abstractmethod
     def disable_mouse_support(self) -> None:
         """Disable mouse."""
-        pass
+        self.write_raw("\x1b[?1000l")
 
     @abstractmethod
     def erase_end_of_line(self) -> None:
         """
         Erases from the current cursor position to the end of the current line.
         """
-        pass
+        self.write_raw("\x1b[K")
 
     @abstractmethod
     def erase_down(self) -> None:
@@ -102,79 +111,93 @@ class Output(metaclass=ABCMeta):
         Erases the screen from the current line down to the bottom of the
         screen.
         """
-        pass
+        self.write_raw("\x1b[J")
 
     @abstractmethod
     def reset_attributes(self) -> None:
         """Reset color and styling attributes."""
-        pass
+        self.write_raw("\x1b[0m")
 
     @abstractmethod
     def set_attributes(self, attrs: Attrs, color_depth: ColorDepth) -> None:
         """Set new color and styling attributes."""
+        # This is a stub. The actual implementation would depend on the attributes and color depth.
         pass
 
     @abstractmethod
     def disable_autowrap(self) -> None:
         """Disable auto line wrapping."""
-        pass
+        self.write_raw("\x1b[?7l")
 
     @abstractmethod
     def enable_autowrap(self) -> None:
         """Enable auto line wrapping."""
-        pass
+        self.write_raw("\x1b[?7h")
 
     @abstractmethod
     def cursor_goto(self, row: int=0, column: int=0) -> None:
         """Move cursor position."""
-        pass
+        self.write_raw(f"\x1b[{row+1};{column+1}H")
 
     @abstractmethod
     def cursor_up(self, amount: int) -> None:
         """Move cursor `amount` place up."""
-        pass
+        if amount > 0:
+            self.write_raw(f"\x1b[{amount}A")
 
     @abstractmethod
     def cursor_down(self, amount: int) -> None:
         """Move cursor `amount` place down."""
-        pass
+        if amount > 0:
+            self.write_raw(f"\x1b[{amount}B")
 
     @abstractmethod
     def cursor_forward(self, amount: int) -> None:
         """Move cursor `amount` place forward."""
-        pass
+        if amount > 0:
+            self.write_raw(f"\x1b[{amount}C")
 
     @abstractmethod
     def cursor_backward(self, amount: int) -> None:
         """Move cursor `amount` place backward."""
-        pass
+        if amount > 0:
+            self.write_raw(f"\x1b[{amount}D")
 
     @abstractmethod
     def hide_cursor(self) -> None:
         """Hide cursor."""
-        pass
+        self.write_raw("\x1b[?25l")
 
     @abstractmethod
     def show_cursor(self) -> None:
         """Show cursor."""
-        pass
+        self.write_raw("\x1b[?25h")
 
     @abstractmethod
     def set_cursor_shape(self, cursor_shape: CursorShape) -> None:
         """Set cursor shape to block, beam or underline."""
-        pass
+        shape_codes = {
+            CursorShape.BLOCK: 2,
+            CursorShape.BEAM: 6,
+            CursorShape.UNDERLINE: 4,
+            CursorShape.BLINKING_BLOCK: 1,
+            CursorShape.BLINKING_BEAM: 5,
+            CursorShape.BLINKING_UNDERLINE: 3,
+        }
+        if cursor_shape in shape_codes:
+            self.write_raw(f"\x1b[{shape_codes[cursor_shape]} q")
 
     @abstractmethod
     def reset_cursor_shape(self) -> None:
         """Reset cursor shape."""
-        pass
+        self.write_raw("\x1b[0 q")
 
     def ask_for_cpr(self) -> None:
         """
         Asks for a cursor position report (CPR).
         (VT100 only.)
         """
-        pass
+        self.write_raw("\x1b[6n")
 
     @property
     def responds_to_cpr(self) -> bool:
@@ -190,24 +213,25 @@ class Output(metaclass=ABCMeta):
         On Windows, we don't need this, there we have
         `get_rows_below_cursor_position`.
         """
-        pass
+        return True  # Assuming VT100 compatibility by default
 
     @abstractmethod
     def get_size(self) -> Size:
         """Return the size of the output window."""
-        pass
+        # This is a stub. The actual implementation would depend on the system.
+        return Size(rows=24, columns=80)
 
     def bell(self) -> None:
         """Sound bell."""
-        pass
+        self.write('\a')
 
     def enable_bracketed_paste(self) -> None:
         """For vt100 only."""
-        pass
+        self.write_raw("\x1b[?2004h")
 
     def disable_bracketed_paste(self) -> None:
         """For vt100 only."""
-        pass
+        self.write_raw("\x1b[?2004l")
 
     def reset_cursor_key_mode(self) -> None:
         """
@@ -216,15 +240,17 @@ class Output(metaclass=ABCMeta):
 
         See: https://vt100.net/docs/vt100-ug/chapter3.html
         """
-        pass
+        self.write_raw("\x1b[?1l")
 
     def scroll_buffer_to_prompt(self) -> None:
         """For Win32 only."""
+        # This is a no-op for non-Windows systems
         pass
 
     def get_rows_below_cursor_position(self) -> int:
         """For Windows only."""
-        pass
+        # This is a stub. The actual implementation would be different for Windows.
+        return 0
 
     @abstractmethod
     def get_default_color_depth(self) -> ColorDepth:
@@ -242,7 +268,7 @@ class Output(metaclass=ABCMeta):
             here. (This is not used when the output corresponds to a
             prompt_toolkit SSH/Telnet session.)
         """
-        pass
+        return ColorDepth.default()
 
 class DummyOutput(Output):
     """
@@ -251,4 +277,4 @@ class DummyOutput(Output):
 
     def fileno(self) -> int:
         """There is no sensible default for fileno()."""
-        pass
+        raise NotImplementedError("DummyOutput does not support fileno()")
