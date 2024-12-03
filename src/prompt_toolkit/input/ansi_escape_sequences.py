@@ -20,5 +20,14 @@ def _get_reverse_ansi_sequences() -> dict[Keys, str]:
     Create a dictionary that maps prompt_toolkit keys back to the VT100 escape
     sequences.
     """
-    pass
+    result = {}
+    for sequence, key in ANSI_SEQUENCES.items():
+        if isinstance(key, Keys):
+            if key not in result:
+                result[key] = sequence
+        elif isinstance(key, tuple):
+            # For tuples, we only consider the last key in the tuple
+            if key[-1] not in result:
+                result[key[-1]] = sequence
+    return result
 REVERSE_ANSI_SEQUENCES = _get_reverse_ansi_sequences()
