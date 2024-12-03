@@ -38,7 +38,8 @@ class Container(metaclass=ABCMeta):
         Reset the state of this container and all the children.
         (E.g. reset scroll offsets, etc...)
         """
-        pass
+        for child in self.get_children():
+            child.reset()
 
     @abstractmethod
     def preferred_width(self, max_available_width: int) -> Dimension:
@@ -46,7 +47,7 @@ class Container(metaclass=ABCMeta):
         Return a :class:`~prompt_toolkit.layout.Dimension` that represents the
         desired width for this container.
         """
-        pass
+        return Dimension()
 
     @abstractmethod
     def preferred_height(self, width: int, max_available_height: int) -> Dimension:
@@ -54,7 +55,7 @@ class Container(metaclass=ABCMeta):
         Return a :class:`~prompt_toolkit.layout.Dimension` that represents the
         desired height for this container.
         """
-        pass
+        return Dimension()
 
     @abstractmethod
     def write_to_screen(self, screen: Screen, mouse_handlers: MouseHandlers, write_position: WritePosition, parent_style: str, erase_bg: bool, z_index: int | None) -> None:
@@ -69,14 +70,15 @@ class Container(metaclass=ABCMeta):
             style down to the windows that they contain.
         :param z_index: Used for propagating z_index from parent to child.
         """
-        pass
+        for child in self.get_children():
+            child.write_to_screen(screen, mouse_handlers, write_position, parent_style, erase_bg, z_index)
 
     def is_modal(self) -> bool:
         """
         When this container is modal, key bindings from parent containers are
         not taken into account if a user control in this container is focused.
         """
-        pass
+        return False
 
     def get_key_bindings(self) -> KeyBindingsBase | None:
         """
@@ -84,14 +86,14 @@ class Container(metaclass=ABCMeta):
         user control in this container has the focus, except if any containers
         between this container and the focused user control is modal.
         """
-        pass
+        return None
 
     @abstractmethod
     def get_children(self) -> list[Container]:
         """
         Return the list of child :class:`.Container` objects.
         """
-        pass
+        return []
 if TYPE_CHECKING:
 
     class MagicContainer(Protocol):
@@ -105,7 +107,7 @@ AnyContainer = Union[Container, 'MagicContainer']
 
 def _window_too_small() -> Window:
     """Create a `Window` that displays the 'Window too small' text."""
-    pass
+    return Window(FormattedTextControl("Window too small..."))
 
 class VerticalAlign(Enum):
     """Alignment for `HSplit`."""
