@@ -55,7 +55,7 @@ class AutoSuggest(metaclass=ABCMeta):
         :param buffer: The :class:`~prompt_toolkit.buffer.Buffer` instance.
         :param document: The :class:`~prompt_toolkit.document.Document` instance.
         """
-        pass
+        raise NotImplementedError("Subclasses should implement this method")
 
     async def get_suggestion_async(self, buff: Buffer, document: Document) -> Suggestion | None:
         """
@@ -63,7 +63,7 @@ class AutoSuggest(metaclass=ABCMeta):
         This function can be overloaded in order to provide an asynchronous
         implementation.
         """
-        pass
+        return self.get_suggestion(buff, document)
 
 class ThreadedAutoSuggest(AutoSuggest):
     """
@@ -79,7 +79,10 @@ class ThreadedAutoSuggest(AutoSuggest):
         """
         Run the `get_suggestion` function in a thread.
         """
-        pass
+        def wrapper():
+            return self.auto_suggest.get_suggestion(buff, document)
+        
+        return await run_in_executor_with_context(wrapper)
 
 class DummyAutoSuggest(AutoSuggest):
     """
