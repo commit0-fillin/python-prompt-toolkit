@@ -44,7 +44,7 @@ class Event(Generic[_Sender]):
 
     def fire(self) -> None:
         """Alias for just calling the event."""
-        pass
+        self()
 
     def add_handler(self, handler: Callable[[_Sender], None]) -> None:
         """
@@ -52,13 +52,15 @@ class Event(Generic[_Sender]):
         (Handler should be a callable that takes exactly one parameter: the
         sender object.)
         """
-        pass
+        if handler not in self._handlers:
+            self._handlers.append(handler)
 
     def remove_handler(self, handler: Callable[[_Sender], None]) -> None:
         """
         Remove a handler from this callback.
         """
-        pass
+        if handler in self._handlers:
+            self._handlers.remove(handler)
 
     def __iadd__(self, handler: Callable[[_Sender], None]) -> Event[_Sender]:
         """
@@ -80,10 +82,10 @@ class DummyContext(ContextManager[None]):
     """
 
     def __enter__(self) -> None:
-        pass
+        return None
 
     def __exit__(self, *a: object) -> None:
-        pass
+        return None
 
 class _CharSizesCache(Dict[str, int]):
     """
@@ -117,48 +119,50 @@ def get_cwidth(string: str) -> int:
     """
     Return width of a string. Wrapper around ``wcwidth``.
     """
-    pass
+    return _CHAR_SIZES_CACHE[string]
 
 def suspend_to_background_supported() -> bool:
     """
     Returns `True` when the Python implementation supports
     suspend-to-background. This is typically `False' on Windows systems.
     """
-    pass
+    return hasattr(signal, 'SIGTSTP')
 
 def is_windows() -> bool:
     """
     True when we are using Windows.
     """
-    pass
+    return sys.platform.startswith('win')
 
 def is_windows_vt100_supported() -> bool:
     """
     True when we are using Windows, but VT100 escape sequences are supported.
     """
-    pass
+    if not is_windows():
+        return False
+    return 'prompt_toolkit.output.windows10.Windows10_Output' in sys.modules
 
 def is_conemu_ansi() -> bool:
     """
     True when the ConEmu Windows console is used.
     """
-    pass
+    return is_windows() and 'ConEmuANSI' in os.environ
 
 def in_main_thread() -> bool:
     """
     True when the current thread is the main thread.
     """
-    pass
+    return threading.current_thread() is threading.main_thread()
 
 def get_bell_environment_variable() -> bool:
     """
     True if env variable is set to true (true, TRUE, True, 1).
     """
-    pass
+    return os.environ.get('PROMPT_TOOLKIT_BELL', '').lower() in ('1', 'true', 'yes', 'on')
 
 def get_term_environment_variable() -> str:
     """Return the $TERM environment variable."""
-    pass
+    return os.environ.get('TERM', '')
 _T = TypeVar('_T')
 
 def take_using_weights(items: list[_T], weights: list[int]) -> Generator[_T, None, None]:
@@ -174,20 +178,26 @@ def take_using_weights(items: list[_T], weights: list[int]) -> Generator[_T, Non
     :param weights: Integers representing the weight. (Numbers have to be
                     integers, not floats.)
     """
-    pass
+    assert len(items) == len(weights)
+    total_weight = sum(weights)
+    
+    while True:
+        for item, weight in zip(items, weights):
+            for _ in range(weight):
+                yield item
 
 def to_str(value: Callable[[], str] | str) -> str:
     """Turn callable or string into string."""
-    pass
+    return value() if callable(value) else value
 
 def to_int(value: Callable[[], int] | int) -> int:
     """Turn callable or int into int."""
-    pass
+    return value() if callable(value) else value
 AnyFloat = Union[Callable[[], float], float]
 
 def to_float(value: AnyFloat) -> float:
     """Turn callable or float into float."""
-    pass
+    return value() if callable(value) else value
 
 def is_dumb_terminal(term: str | None=None) -> bool:
     """
@@ -196,4 +206,6 @@ def is_dumb_terminal(term: str | None=None) -> bool:
     If so, we should fall back to the simplest possible form of line editing,
     without cursor positioning and color support.
     """
-    pass
+    if term is None:
+        term = get_term_environment_variable()
+    return term.lower() in ('dumb', 'unknown')
