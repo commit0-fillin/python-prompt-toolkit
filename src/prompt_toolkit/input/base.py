@@ -22,51 +22,52 @@ class Input(metaclass=ABCMeta):
         """
         Fileno for putting this in an event loop.
         """
-        pass
+        raise NotImplementedError("fileno method must be implemented by subclasses")
 
     @abstractmethod
     def typeahead_hash(self) -> str:
         """
         Identifier for storing type ahead key presses.
         """
-        pass
+        raise NotImplementedError("typeahead_hash method must be implemented by subclasses")
 
     @abstractmethod
     def read_keys(self) -> list[KeyPress]:
         """
         Return a list of Key objects which are read/parsed from the input.
         """
-        pass
+        raise NotImplementedError("read_keys method must be implemented by subclasses")
 
     def flush_keys(self) -> list[KeyPress]:
         """
         Flush the underlying parser. and return the pending keys.
         (Used for vt100 input.)
         """
-        pass
+        return []  # Default implementation returns an empty list
 
     def flush(self) -> None:
         """The event loop can call this when the input has to be flushed."""
-        pass
+        # Default implementation does nothing
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def closed(self) -> bool:
         """Should be true when the input stream is closed."""
-        pass
+        raise NotImplementedError("closed property must be implemented by subclasses")
 
     @abstractmethod
     def raw_mode(self) -> ContextManager[None]:
         """
         Context manager that turns the input into raw mode.
         """
-        pass
+        raise NotImplementedError("raw_mode method must be implemented by subclasses")
 
     @abstractmethod
     def cooked_mode(self) -> ContextManager[None]:
         """
         Context manager that turns the input into cooked mode.
         """
-        pass
+        raise NotImplementedError("cooked_mode method must be implemented by subclasses")
 
     @abstractmethod
     def attach(self, input_ready_callback: Callable[[], None]) -> ContextManager[None]:
@@ -74,7 +75,7 @@ class Input(metaclass=ABCMeta):
         Return a context manager that makes this input active in the current
         event loop.
         """
-        pass
+        raise NotImplementedError("attach method must be implemented by subclasses")
 
     @abstractmethod
     def detach(self) -> ContextManager[None]:
@@ -82,11 +83,11 @@ class Input(metaclass=ABCMeta):
         Return a context manager that makes sure that this input is not active
         in the current event loop.
         """
-        pass
+        raise NotImplementedError("detach method must be implemented by subclasses")
 
     def close(self) -> None:
         """Close input."""
-        pass
+        # Default implementation does nothing
 
 class PipeInput(Input):
     """
@@ -96,12 +97,12 @@ class PipeInput(Input):
     @abstractmethod
     def send_bytes(self, data: bytes) -> None:
         """Feed byte string into the pipe"""
-        pass
+        raise NotImplementedError("send_bytes method must be implemented by subclasses")
 
     @abstractmethod
     def send_text(self, data: str) -> None:
         """Feed a text string into the pipe"""
-        pass
+        raise NotImplementedError("send_text method must be implemented by subclasses")
 
 class DummyInput(Input):
     """
