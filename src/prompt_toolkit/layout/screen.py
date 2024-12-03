@@ -63,54 +63,65 @@ class Screen:
         """
         Set the cursor position for a given window.
         """
-        pass
+        self.cursor_positions[window] = position
 
     def set_menu_position(self, window: Window, position: Point) -> None:
         """
-        Set the cursor position for a given window.
+        Set the menu position for a given window.
         """
-        pass
+        self.menu_positions[window] = position
 
     def get_cursor_position(self, window: Window) -> Point:
         """
         Get the cursor position for a given window.
         Returns a `Point`.
         """
-        pass
+        return self.cursor_positions.get(window, Point(x=0, y=0))
 
     def get_menu_position(self, window: Window) -> Point:
         """
         Get the menu position for a given window.
         (This falls back to the cursor position if no menu position was set.)
         """
-        pass
+        return self.menu_positions.get(window, self.get_cursor_position(window))
 
     def draw_with_z_index(self, z_index: int, draw_func: Callable[[], None]) -> None:
         """
         Add a draw-function for a `Window` which has a >= 0 z_index.
         This will be postponed until `draw_all_floats` is called.
         """
-        pass
+        self._draw_float_functions.append((z_index, draw_func))
 
     def draw_all_floats(self) -> None:
         """
         Draw all float functions in order of z-index.
         """
-        pass
+        for _, draw_func in sorted(self._draw_float_functions):
+            draw_func()
+        self._draw_float_functions = []
 
     def append_style_to_content(self, style_str: str) -> None:
         """
         For all the characters in the screen.
         Set the style string to the given `style_str`.
         """
-        pass
+        for row in self.data_buffer.values():
+            for char in row.values():
+                char.style += style_str
 
     def fill_area(self, write_position: WritePosition, style: str='', after: bool=False) -> None:
         """
         Fill the content of this area, using the given `style`.
         The style is prepended before whatever was here before.
         """
-        pass
+        for y in range(write_position.ypos, write_position.ypos + write_position.height):
+            row = self.data_buffer[y]
+            for x in range(write_position.xpos, write_position.xpos + write_position.width):
+                cell = row[x]
+                if after:
+                    cell.style += style
+                else:
+                    cell.style = style + cell.style
 
 class WritePosition:
 
