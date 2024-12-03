@@ -64,28 +64,123 @@ def start_search(buffer_control: BufferControl | None=None, direction: SearchDir
     :param buffer_control: Start search for this `BufferControl`. If not given,
         search through the current control.
     """
-    pass
+    app = get_app()
+    layout = app.layout
+
+    if buffer_control is None:
+        buffer_control = layout.current_control
+        if not isinstance(buffer_control, BufferControl):
+            return
+
+    search_control = buffer_control._search_buffer_control
+    if callable(search_control):
+        search_control = search_control()
+
+    if not isinstance(search_control, SearchBufferControl):
+        return
+
+    # Remember the original search state.
+    search_state = search_control.searcher_search_state
+    search_state.direction = direction
+
+    # Focus search buffer
+    layout.focus(search_control)
+
+    # Remember search link
+    layout.search_links[search_control] = buffer_control
 
 def stop_search(buffer_control: BufferControl | None=None) -> None:
     """
     Stop search through the given `buffer_control`.
     """
-    pass
+    app = get_app()
+    layout = app.layout
+
+    if buffer_control is None:
+        buffer_control = layout.current_control
+        if not isinstance(buffer_control, BufferControl):
+            return
+
+    search_control = buffer_control._search_buffer_control
+    if callable(search_control):
+        search_control = search_control()
+
+    if not isinstance(search_control, SearchBufferControl):
+        return
+
+    # Focus the original buffer again.
+    layout.focus(buffer_control)
+
+    # Remove search link
+    if search_control in layout.search_links:
+        del layout.search_links[search_control]
+
+    # Reset content of search control.
+    search_control.buffer.reset()
 
 def do_incremental_search(direction: SearchDirection, count: int=1) -> None:
     """
     Apply search, but keep search buffer focused.
     """
-    pass
+    app = get_app()
+    layout = app.layout
+    search_control = layout.current_control
+
+    if not isinstance(search_control, SearchBufferControl):
+        return
+
+    if search_control not in layout.search_links:
+        return
+
+    buffer_control = layout.search_links[search_control]
+    search_state = search_control.searcher_search_state
+
+    # Update search_state
+    search_state.direction = direction
+    search_state.text = search_control.buffer.text
+
+    # Apply search to current buffer.
+    if search_state.text:
+        buffer_control.buffer.apply_search(
+            search_state, include_current_position=False, count=count
+        )
 
 def accept_search() -> None:
     """
     Accept current search query. Focus original `BufferControl` again.
     """
-    pass
+    app = get_app()
+    layout = app.layout
+    search_control = layout.current_control
+
+    if not isinstance(search_control, SearchBufferControl):
+        return
+
+    if search_control not in layout.search_links:
+        return
+
+    buffer_control = layout.search_links[search_control]
+    search_state = search_control.searcher_search_state
+
+    # Update search state.
+    search_state.text = search_control.buffer.text
+
+    # Apply search.
+    buffer_control.buffer.apply_search(
+        search_state, include_current_position=True, count=1
+    )
+
+    # Add query to history of search line.
+    search_control.buffer.append_to_history()
+
+    # Focus original buffer again.
+    layout.focus(buffer_control)
 
 def _get_reverse_search_links(layout: Layout) -> dict[BufferControl, SearchBufferControl]:
     """
     Return mapping from BufferControl to SearchBufferControl.
     """
-    pass
+    return {
+        buffer_control: search_control
+        for search_control, buffer_control in layout.search_links.items()
+    }
