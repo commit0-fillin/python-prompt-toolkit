@@ -91,7 +91,9 @@ class HTML:
         Like `str.format`, but make sure that the arguments are properly
         escaped.
         """
-        pass
+        escaped_args = tuple(html_escape(arg) for arg in args)
+        escaped_kwargs = {key: html_escape(value) for key, value in kwargs.items()}
+        return HTML(FORMATTER.vformat(self.value, escaped_args, escaped_kwargs))
 
     def __mod__(self, value: object) -> HTML:
         """
@@ -99,8 +101,8 @@ class HTML:
         """
         if not isinstance(value, tuple):
             value = (value,)
-        value = tuple((html_escape(i) for i in value))
-        return HTML(self.value % value)
+        escaped_value = tuple(html_escape(i) for i in value)
+        return HTML(self.value % escaped_value)
 
 class HTMLFormatter(Formatter):
     pass
