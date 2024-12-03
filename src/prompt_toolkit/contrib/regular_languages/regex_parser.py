@@ -120,10 +120,97 @@ def tokenize_regex(input: str) -> list[str]:
     :param input: string, representing a regular expression.
     :returns: List of tokens.
     """
-    pass
+    tokens = []
+    i = 0
+    input = re.sub(r'\s+', '', input)  # Remove all whitespace
+    
+    while i < len(input):
+        if input[i] in '()|?*+.[]^$':
+            tokens.append(input[i])
+            i += 1
+        elif input[i] == '\\':
+            if i + 1 < len(input):
+                tokens.append(input[i:i+2])
+                i += 2
+            else:
+                tokens.append(input[i])
+                i += 1
+        elif input[i] == '{':
+            end = input.find('}', i)
+            if end != -1:
+                tokens.append(input[i:end+1])
+                i = end + 1
+            else:
+                tokens.append(input[i])
+                i += 1
+        else:
+            tokens.append(input[i])
+            i += 1
+    
+    return tokens
 
 def parse_regex(regex_tokens: list[str]) -> Node:
     """
     Takes a list of tokens from the tokenizer, and returns a parse tree.
     """
-    pass
+    def parse_sequence() -> Node:
+        sequence = []
+        while tokens and tokens[0] not in ')|':
+            sequence.append(parse_atom())
+        return NodeSequence(sequence) if len(sequence) > 1 else sequence[0]
+
+    def parse_atom() -> Node:
+        if not tokens:
+            raise ValueError("Unexpected end of regex")
+        
+        token = tokens.pop(0)
+        
+        if token == '(':
+            node = parse_sequence()
+            if not tokens or tokens.pop(0) != ')':
+                raise ValueError("Unmatched parenthesis")
+        elif token == '[' or token.startswith('\\'):
+            node = Regex(token)
+        else:
+            node = Regex(re.escape(token))
+        
+        while tokens and tokens[0] in '*+?{':
+            quantifier = tokens.pop(0)
+            if quantifier == '{':
+                end = tokens.index('}')
+                quantifier += ''.join(tokens[:end+1])
+                tokens = tokens[end+1:]
+            min_repeat, max_repeat = 0, None
+            greedy = True
+            
+            if quantifier == '*':
+                max_repeat = None
+            elif quantifier == '+':
+                min_repeat = 1
+                max_repeat = None
+            elif quantifier == '?':
+                max_repeat = 1
+            elif quantifier.startswith('{'):
+                parts = quantifier[1:-1].split(',')
+                min_repeat = int(parts[0])
+                max_repeat = int(parts[1]) if len(parts) > 1 and parts[1] else None
+            
+            if tokens and tokens[0] == '?':
+                greedy = False
+                tokens.pop(0)
+            
+            node = Repeat(node, min_repeat, max_repeat, greedy)
+        
+        return node
+
+    tokens = regex_tokens.copy()
+    result = parse_sequence()
+    
+    while tokens and tokens[0] == '|':
+        tokens.pop(0)
+        result = result | parse_sequence()
+    
+    if tokens:
+        raise ValueError(f"Unexpected tokens: {''.join(tokens)}")
+    
+    return result
