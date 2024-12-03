@@ -75,7 +75,13 @@ def _format_timedelta(timedelta: datetime.timedelta) -> str:
     """
     Return hh:mm:ss, or mm:ss if the amount of hours is zero.
     """
-    pass
+    hours, remainder = divmod(int(timedelta.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        return f"{minutes:02d}:{seconds:02d}"
 
 class TimeElapsed(Formatter):
     """
@@ -105,7 +111,19 @@ def _hue_to_rgb(hue: float) -> tuple[int, int, int]:
     """
     Take hue between 0 and 1, return (r, g, b).
     """
-    pass
+    hue *= 6
+    if hue < 1:
+        return (255, int(255 * hue), 0)
+    elif hue < 2:
+        return (int(255 * (2 - hue)), 255, 0)
+    elif hue < 3:
+        return (0, 255, int(255 * (hue - 2)))
+    elif hue < 4:
+        return (0, int(255 * (4 - hue)), 255)
+    elif hue < 5:
+        return (int(255 * (hue - 4)), 0, 255)
+    else:
+        return (255, 0, int(255 * (6 - hue)))
 
 class Rainbow(Formatter):
     """
@@ -120,4 +138,17 @@ def create_default_formatters() -> list[Formatter]:
     """
     Return the list of default formatters.
     """
-    pass
+    return [
+        Label(),
+        Text(' '),
+        Percentage(),
+        Text(' '),
+        Bar(),
+        Text(' '),
+        Progress(),
+        Text(' '),
+        Text('eta [', style='class:time-left'),
+        TimeLeft(),
+        Text(']', style='class:time-left'),
+        Text(' '),
+    ]
