@@ -60,13 +60,21 @@ class CompletionState:
 
         When `index` is `None` deselect the completion.
         """
-        pass
+        if self.completions:
+            self.complete_index = index
+            if index is not None:
+                self.complete_index = max(0, min(index, len(self.completions) - 1))
 
     def new_text_and_position(self) -> tuple[str, int]:
         """
         Return (new_text, new_cursor_position) for this completion.
         """
-        pass
+        if self.current_completion:
+            completed = self.current_completion.text
+            position = self.original_document.cursor_position - len(self.current_completion.start_position) + len(completed)
+            new_text = self.original_document.text[:self.current_completion.start_position] + completed + self.original_document.text[self.original_document.cursor_position:]
+            return new_text, position
+        return self.original_document.text, self.original_document.cursor_position
 
     @property
     def current_completion(self) -> Completion | None:
@@ -74,7 +82,9 @@ class CompletionState:
         Return the current completion, or return `None` when no completion is
         selected.
         """
-        pass
+        if self.complete_index is not None and self.completions:
+            return self.completions[self.complete_index]
+        return None
 _QUOTED_WORDS_RE = re.compile('(\\s+|".*?"|\'.*?\')')
 
 class YankNthArgState:
@@ -193,7 +203,25 @@ class Buffer:
         """
         :param append_to_history: Append current input to history first.
         """
-        pass
+        if append_to_history:
+            self.append_to_history()
+
+        if document is None:
+            document = Document()
+
+        self.document = document
+        self._undo_stack = []
+        self._redo_stack = []
+
+        self.selection_state = None
+        self.suggestion = None
+        self.complete_state = None
+        self.yank_nth_arg_state = None
+        self.validation_state = ValidationState.UNKNOWN
+        self.validation_error = None
+
+        self.on_text_changed.fire()
+        self.on_cursor_position_changed.fire()
 
     def load_history_if_not_yet_loaded(self) -> None:
         """
@@ -216,15 +244,20 @@ class Buffer:
             thread, but history loading is the only place where it matters, and
             this solves it.
         """
-        pass
+        if self._load_history_task is None:
+            self._load_history_task = asyncio.create_task(self.history.load())
 
     def _set_text(self, value: str) -> bool:
         """set text at current working_index. Return whether it changed."""
-        pass
+        original_value = self.text
+        self._text = value
+        return value != original_value
 
     def _set_cursor_position(self, value: int) -> bool:
         """Set cursor position. Return whether it changed."""
-        pass
+        original_position = self.__cursor_position
+        self.__cursor_position = max(0, min(value, len(self.text)))
+        return self.__cursor_position != original_position
 
     @text.setter
     def text(self, value: str) -> None:
@@ -233,14 +266,17 @@ class Buffer:
         valid for this text. text/cursor_position should be consistent at any time,
         otherwise set a Document instead.)
         """
-        pass
+        if self._set_text(value):
+            self.cursor_position = min(self.cursor_position, len(value))
+            self.on_text_changed.fire()
 
     @cursor_position.setter
     def cursor_position(self, value: int) -> None:
         """
         Setting cursor position.
         """
-        pass
+        if self._set_cursor_position(value):
+            self.on_cursor_position_changed.fire()
 
     @property
     def document(self) -> Document:
@@ -248,7 +284,7 @@ class Buffer:
         Return :class:`~prompt_toolkit.document.Document` instance from the
         current text, cursor position and selection state.
         """
-        pass
+        return self._document_cache.get((self.text, self.cursor_position, self.selection_state))
 
     @document.setter
     def document(self, value: Document) -> None:
@@ -258,7 +294,7 @@ class Buffer:
         This will set both the text and cursor position at the same time, but
         atomically. (Change events will be triggered only after both have been set.)
         """
-        pass
+        self.set_document(value)
 
     def set_document(self, value: Document, bypass_readonly: bool=False) -> None:
         """
@@ -278,7 +314,16 @@ class Buffer:
             you expect, and there won't be a stack trace. Use try/finally
             around this function if you need some cleanup code.
         """
-        pass
+        if not bypass_readonly and self.read_only():
+            raise EditReadOnlyBuffer()
+
+        text_changed = self._set_text(value.text)
+        cursor_position_changed = self._set_cursor_position(value.cursor_position)
+
+        if text_changed:
+            self.on_text_changed.fire()
+        if cursor_position_changed:
+            self.on_cursor_position_changed.fire()
 
     @property
     def is_returnable(self) -> bool:
