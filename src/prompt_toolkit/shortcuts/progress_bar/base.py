@@ -39,7 +39,15 @@ def create_key_bindings(cancel_callback: Callable[[], None] | None) -> KeyBindin
     Key bindings handled by the progress bar.
     (The main thread is not supposed to handle any key bindings.)
     """
-    pass
+    kb = KeyBindings()
+
+    @kb.add('c-c')
+    def _(event: E) -> None:
+        " Abort. "
+        if cancel_callback:
+            cancel_callback()
+
+    return kb
 _T = TypeVar('_T')
 
 class ProgressBar:
@@ -182,7 +190,9 @@ class ProgressBarCounter(Generic[_CounterItem]):
 
         (Can be called manually in case we don't have a collection to loop through.)
         """
-        pass
+        self.items_completed += 1
+        if self.total is not None and self.items_completed >= self.total:
+            self.done = True
 
     @property
     def done(self) -> bool:
@@ -194,7 +204,13 @@ class ProgressBarCounter(Generic[_CounterItem]):
         Contrast this with stopped. A stopped counter may be terminated before
         100% completion. A done counter has reached its 100% completion.
         """
-        pass
+        return self._done
+
+    @done.setter
+    def done(self, value: bool) -> None:
+        self._done = value
+        if value:
+            self.stopped = True
 
     @property
     def stopped(self) -> bool:
@@ -212,18 +228,37 @@ class ProgressBarCounter(Generic[_CounterItem]):
         Contrast this with done. A done counter has reached its 100% completion.
         A stopped counter may be terminated before 100% completion.
         """
-        pass
+        return self.stop_time is not None
+
+    @stopped.setter
+    def stopped(self, value: bool) -> None:
+        if value and self.stop_time is None:
+            self.stop_time = datetime.datetime.now()
+        elif not value:
+            self.stop_time = None
 
     @property
     def time_elapsed(self) -> datetime.timedelta:
         """
         Return how much time has been elapsed since the start.
         """
-        pass
+        if self.stop_time is not None:
+            return self.stop_time - self.start_time
+        return datetime.datetime.now() - self.start_time
 
     @property
     def time_left(self) -> datetime.timedelta | None:
         """
         Timedelta representing the time left.
         """
-        pass
+        if self.done:
+            return datetime.timedelta(0)
+        if self.total is None or self.items_completed == 0:
+            return None
+        
+        elapsed = self.time_elapsed
+        rate = self.items_completed / elapsed.total_seconds()
+        remaining_items = self.total - self.items_completed
+        seconds_left = remaining_items / rate if rate > 0 else 0
+        
+        return datetime.timedelta(seconds=int(seconds_left))
