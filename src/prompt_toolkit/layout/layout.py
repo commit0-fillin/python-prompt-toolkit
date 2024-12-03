@@ -41,7 +41,9 @@ class Layout:
         """
         Find all the :class:`.UIControl` objects in this layout.
         """
-        pass
+        for item in self.walk():
+            if isinstance(item, Window):
+                yield item
 
     def focus(self, value: FocusableElement) -> None:
         """
@@ -56,77 +58,128 @@ class Layout:
           from this container that was focused most recent, or the very first
           focusable :class:`.Window` of the container.
         """
-        pass
+        if isinstance(value, str):
+            # Focus buffer by name.
+            for w in self.find_all_windows():
+                if isinstance(w.content, BufferControl) and w.content.buffer.name == value:
+                    self._stack.append(w)
+                    return
+        elif isinstance(value, Buffer):
+            # Focus buffer.
+            for w in self.find_all_windows():
+                if isinstance(w.content, BufferControl) and w.content.buffer == value:
+                    self._stack.append(w)
+                    return
+        elif isinstance(value, UIControl):
+            # Focus UIControl.
+            for w in self.find_all_windows():
+                if w.content == value:
+                    self._stack.append(w)
+                    return
+        elif isinstance(value, Window):
+            # Focus Window.
+            self._stack.append(value)
+        else:
+            # Focus Container.
+            for w in self.walk_through_modal_area():
+                if isinstance(w, Window) and w.content.is_focusable():
+                    self._stack.append(w)
+                    return
+
+        # If we're here, it means that we couldn't find a window to focus.
+        self._stack = []
 
     def has_focus(self, value: FocusableElement) -> bool:
         """
         Check whether the given control has the focus.
         :param value: :class:`.UIControl` or :class:`.Window` instance.
         """
-        pass
+        if isinstance(value, Window):
+            return self._stack and self._stack[-1] == value
+        else:
+            return self._stack and self._stack[-1].content == value
 
     @property
     def current_control(self) -> UIControl:
         """
         Get the :class:`.UIControl` to currently has the focus.
         """
-        pass
+        if self._stack:
+            return self._stack[-1].content
+        return self.container.content
 
     @current_control.setter
     def current_control(self, control: UIControl) -> None:
         """
         Set the :class:`.UIControl` to receive the focus.
         """
-        pass
+        self.focus(control)
 
     @property
     def current_window(self) -> Window:
         """Return the :class:`.Window` object that is currently focused."""
-        pass
+        if self._stack:
+            return self._stack[-1]
+        return next(self.find_all_windows())
 
     @current_window.setter
     def current_window(self, value: Window) -> None:
         """Set the :class:`.Window` object to be currently focused."""
-        pass
+        self.focus(value)
 
     @property
     def is_searching(self) -> bool:
         """True if we are searching right now."""
-        pass
+        return any(
+            isinstance(c, SearchBufferControl)
+            for c in self.search_links
+        )
 
     @property
     def search_target_buffer_control(self) -> BufferControl | None:
         """
         Return the :class:`.BufferControl` in which we are searching or `None`.
         """
-        pass
+        if self.is_searching:
+            for search_control, buffer_control in self.search_links.items():
+                if search_control.buffer.text:
+                    return buffer_control
+        return None
 
     def get_focusable_windows(self) -> Iterable[Window]:
         """
         Return all the :class:`.Window` objects which are focusable (in the
         'modal' area).
         """
-        pass
+        for w in self.walk_through_modal_area():
+            if isinstance(w, Window) and w.content.is_focusable():
+                yield w
 
     def get_visible_focusable_windows(self) -> list[Window]:
         """
         Return a list of :class:`.Window` objects that are focusable.
         """
-        pass
+        return [w for w in self.visible_windows if w.content.is_focusable()]
 
     @property
     def current_buffer(self) -> Buffer | None:
         """
         The currently focused :class:`~.Buffer` or `None`.
         """
-        pass
+        if isinstance(self.current_control, BufferControl):
+            return self.current_control.buffer
+        return None
 
     def get_buffer_by_name(self, buffer_name: str) -> Buffer | None:
         """
         Look in the layout for a buffer with the given name.
         Return `None` when nothing was found.
         """
-        pass
+        for w in self.find_all_windows():
+            if isinstance(w.content, BufferControl):
+                if w.content.buffer.name == buffer_name:
+                    return w.content.buffer
+        return None
 
     @property
     def buffer_has_focus(self) -> bool:
@@ -135,58 +188,98 @@ class Layout:
         :class:`.BufferControl`. (For instance, used to determine whether the
         default key bindings should be active or not.)
         """
-        pass
+        return isinstance(self.current_control, BufferControl)
 
     @property
     def previous_control(self) -> UIControl:
         """
         Get the :class:`.UIControl` to previously had the focus.
         """
-        pass
+        if len(self._stack) > 1:
+            return self._stack[-2].content
+        return self.container.content
 
     def focus_last(self) -> None:
         """
         Give the focus to the last focused control.
         """
-        pass
+        if len(self._stack) > 1:
+            self._stack.pop()
 
     def focus_next(self) -> None:
         """
         Focus the next visible/focusable Window.
         """
-        pass
+        windows = self.get_visible_focusable_windows()
+        if not windows:
+            return
+
+        try:
+            index = windows.index(self.current_window)
+            self.focus(windows[(index + 1) % len(windows)])
+        except ValueError:
+            # If the current window is not in the list, focus the first one.
+            self.focus(windows[0])
 
     def focus_previous(self) -> None:
         """
         Focus the previous visible/focusable Window.
         """
-        pass
+        windows = self.get_visible_focusable_windows()
+        if not windows:
+            return
+
+        try:
+            index = windows.index(self.current_window)
+            self.focus(windows[(index - 1) % len(windows)])
+        except ValueError:
+            # If the current window is not in the list, focus the last one.
+            self.focus(windows[-1])
 
     def walk(self) -> Iterable[Container]:
         """
         Walk through all the layout nodes (and their children) and yield them.
         """
-        pass
+        def walk_recursive(container):
+            yield container
+            for c in container.get_children():
+                yield from walk_recursive(c)
+
+        yield from walk_recursive(self.container)
 
     def walk_through_modal_area(self) -> Iterable[Container]:
         """
         Walk through all the containers which are in the current 'modal' part
         of the layout.
         """
-        pass
+        for container in self.walk():
+            if container.is_modal():
+                yield from container.get_children()
+                return
+        yield from self.walk()
 
     def update_parents_relations(self) -> None:
         """
         Update child->parent relationships mapping.
         """
-        pass
+        self._child_to_parent = {}
+
+        def walk(container):
+            for child in container.get_children():
+                self._child_to_parent[child] = container
+                walk(child)
+
+        walk(self.container)
 
     def get_parent(self, container: Container) -> Container | None:
         """
         Return the parent container for the given container, or ``None``, if it
         wasn't found.
         """
-        pass
+        try:
+            return self._child_to_parent[container]
+        except KeyError:
+            return None
 
 class InvalidLayoutError(Exception):
     pass
