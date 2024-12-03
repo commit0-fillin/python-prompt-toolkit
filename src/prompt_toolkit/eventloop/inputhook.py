@@ -52,13 +52,17 @@ def new_eventloop_with_inputhook(inputhook: Callable[[InputHookContext], None]) 
     """
     Create a new event loop with the given inputhook.
     """
-    pass
+    selector = selectors.SelectSelector()
+    loop = asyncio.SelectorEventLoop(InputHookSelector(selector, inputhook))
+    return loop
 
 def set_eventloop_with_inputhook(inputhook: Callable[[InputHookContext], None]) -> AbstractEventLoop:
     """
     Create a new event loop with the given inputhook, and activate it.
     """
-    pass
+    loop = new_eventloop_with_inputhook(inputhook)
+    asyncio.set_event_loop(loop)
+    return loop
 
 class InputHookSelector(BaseSelector):
     """
@@ -78,4 +82,6 @@ class InputHookSelector(BaseSelector):
         """
         Clean up resources.
         """
-        pass
+        self.selector.close()
+        os.close(self._r)
+        os.close(self._w)
