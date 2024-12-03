@@ -14,12 +14,15 @@ class EmacsState:
     @property
     def is_recording(self) -> bool:
         """Tell whether we are recording a macro."""
-        pass
+        return self.current_recording is not None
 
     def start_macro(self) -> None:
         """Start recording macro."""
-        pass
+        if not self.is_recording:
+            self.current_recording = []
 
     def end_macro(self) -> None:
         """End recording macro."""
-        pass
+        if self.is_recording:
+            self.macro = self.current_recording
+            self.current_recording = None
