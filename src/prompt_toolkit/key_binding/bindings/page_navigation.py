@@ -12,18 +12,43 @@ def load_page_navigation_bindings() -> KeyBindingsBase:
     """
     Load both the Vi and Emacs bindings for page navigation.
     """
-    pass
+    return merge_key_bindings([
+        load_emacs_page_navigation_bindings(),
+        load_vi_page_navigation_bindings()
+    ])
 
 def load_emacs_page_navigation_bindings() -> KeyBindingsBase:
     """
     Key bindings, for scrolling up and down through pages.
     This are separate bindings, because GNU readline doesn't have them.
     """
-    pass
+    kb = KeyBindings()
+    handle = kb.add
+
+    handle('c-v')(scroll_page_down)
+    handle('pagedown')(scroll_page_down)
+    handle('escape', 'v')(scroll_page_up)
+    handle('pageup')(scroll_page_up)
+    handle('escape', '<')(scroll_half_page_up)
+    handle('escape', '>')(scroll_half_page_down)
+    handle('escape', '(')(scroll_one_line_up)
+    handle('escape', ')')(scroll_one_line_down)
+
+    return ConditionalKeyBindings(kb, emacs_mode & buffer_has_focus)
 
 def load_vi_page_navigation_bindings() -> KeyBindingsBase:
     """
     Key bindings, for scrolling up and down through pages.
     This are separate bindings, because GNU readline doesn't have them.
     """
-    pass
+    kb = KeyBindings()
+    handle = kb.add
+
+    handle('c-f')(scroll_page_down)
+    handle('c-b')(scroll_page_up)
+    handle('c-d')(scroll_half_page_down)
+    handle('c-u')(scroll_half_page_up)
+    handle('c-e')(scroll_one_line_down)
+    handle('c-y')(scroll_one_line_up)
+
+    return ConditionalKeyBindings(kb, vi_mode & buffer_has_focus)
