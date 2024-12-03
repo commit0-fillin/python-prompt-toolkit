@@ -37,7 +37,15 @@ class BaseStyle(metaclass=ABCMeta):
             well as classnames (e.g. "class:title").
         :param default: `Attrs` to be used if no styling was defined.
         """
-        pass
+        attrs = default
+        for part in style_str.split():
+            if part.startswith('fg:'):
+                attrs = attrs._replace(color=part[3:])
+            elif part.startswith('bg:'):
+                attrs = attrs._replace(bgcolor=part[3:])
+            elif part in ('bold', 'underline', 'strike', 'italic', 'blink', 'reverse', 'hidden'):
+                attrs = attrs._replace(**{part: True})
+        return attrs
 
     @abstractproperty
     def style_rules(self) -> list[tuple[str, str]]:
@@ -45,7 +53,7 @@ class BaseStyle(metaclass=ABCMeta):
         The list of style rules, used to create this style.
         (Required for `DynamicStyle` and `_MergedStyle` to work.)
         """
-        pass
+        return []
 
     @abstractmethod
     def invalidation_hash(self) -> Hashable:
@@ -54,7 +62,7 @@ class BaseStyle(metaclass=ABCMeta):
         renderer knows that something in the style changed, and that everything
         has to be redrawn.
         """
-        pass
+        return hash(tuple(self.style_rules))
 
 class DummyStyle(BaseStyle):
     """
