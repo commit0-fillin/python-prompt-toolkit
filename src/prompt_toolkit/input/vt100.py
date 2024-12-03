@@ -46,25 +46,32 @@ class Vt100Input(Input):
         Return a context manager that makes this input active in the current
         event loop.
         """
-        pass
+        return _attached_input(self, input_ready_callback)
 
     def detach(self) -> ContextManager[None]:
         """
         Return a context manager that makes sure that this input is not active
         in the current event loop.
         """
-        pass
+        return _attached_input(self, None)
 
     def read_keys(self) -> list[KeyPress]:
         """Read list of KeyPress."""
-        pass
+        data = self.stdin_reader.read()
+        self.vt100_parser.feed(data)
+        result = self._buffer
+        self._buffer = []
+        return result
 
     def flush_keys(self) -> list[KeyPress]:
         """
         Flush pending keys and return them.
         (Used for flushing the 'escape' key.)
         """
-        pass
+        self.vt100_parser.flush()
+        result = self._buffer
+        self._buffer = []
+        return result
 _current_callbacks: dict[tuple[AbstractEventLoop, int], Callable[[], None] | None] = {}
 
 @contextlib.contextmanager
@@ -75,7 +82,25 @@ def _attached_input(input: Vt100Input, callback: Callable[[], None]) -> Generato
     :param input: :class:`~prompt_toolkit.input.Input` object.
     :param callback: Called when the input is ready to read.
     """
-    pass
+    loop = get_running_loop()
+    previous = _current_callbacks.get((loop, input._fileno))
+
+    _current_callbacks[(loop, input._fileno)] = callback
+
+    if callback is not None:
+        loop.add_reader(input._fileno, callback)
+    else:
+        loop.remove_reader(input._fileno)
+
+    try:
+        yield
+    finally:
+        _current_callbacks[(loop, input._fileno)] = previous
+
+        if callback is not None:
+            loop.remove_reader(input._fileno)
+        if previous:
+            loop.add_reader(input._fileno, previous)
 
 class raw_mode:
     """
@@ -104,12 +129,16 @@ class raw_mode:
             newattr[tty.LFLAG] = self._patch_lflag(newattr[tty.LFLAG])
             newattr[tty.IFLAG] = self._patch_iflag(newattr[tty.IFLAG])
             newattr[tty.CC][termios.VMIN] = 1
-            termios.tcsetattr(self.fileno, termios.TCSANOW, newattr)
+            newattr[tty.CC][termios.VTIME] = 0
+            try:
+                termios.tcsetattr(self.fileno, termios.TCSADRAIN, newattr)
+            except termios.error:
+                pass
 
     def __exit__(self, *a: object) -> None:
         if self.attrs_before is not None:
             try:
-                termios.tcsetattr(self.fileno, termios.TCSANOW, self.attrs_before)
+                termios.tcsetattr(self.fileno, termios.TCSADRAIN, self.attrs_before)
             except termios.error:
                 pass
 
