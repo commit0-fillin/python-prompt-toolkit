@@ -78,109 +78,119 @@ class Document:
     @property
     def text(self) -> str:
         """The document text."""
-        pass
+        return self._text
 
     @property
     def cursor_position(self) -> int:
         """The document cursor position."""
-        pass
+        return self._cursor_position
 
     @property
     def selection(self) -> SelectionState | None:
         """:class:`.SelectionState` object."""
-        pass
+        return self._selection
 
     @property
     def current_char(self) -> str:
         """Return character under cursor or an empty string."""
-        pass
+        return self._text[self._cursor_position] if self._cursor_position < len(self._text) else ''
 
     @property
     def char_before_cursor(self) -> str:
         """Return character before the cursor or an empty string."""
-        pass
+        return self._text[self._cursor_position - 1] if self._cursor_position > 0 else ''
 
     @property
     def current_line_before_cursor(self) -> str:
         """Text from the start of the line until the cursor."""
-        pass
+        return self._text[:self._cursor_position].split('\n')[-1]
 
     @property
     def current_line_after_cursor(self) -> str:
         """Text from the cursor until the end of the line."""
-        pass
+        return self._text[self._cursor_position:].split('\n')[0]
 
     @property
     def lines(self) -> list[str]:
         """
         Array of all the lines.
         """
-        pass
+        if self._cache.lines is None:
+            self._cache.lines = _ImmutableLineList(self._text.split('\n'))
+        return self._cache.lines
 
     @property
     def _line_start_indexes(self) -> list[int]:
         """
         Array pointing to the start indexes of all the lines.
         """
-        pass
+        if self._cache.line_indexes is None:
+            indexes = [0]
+            for line in self.lines[:-1]:
+                indexes.append(indexes[-1] + len(line) + 1)
+            self._cache.line_indexes = indexes
+        return self._cache.line_indexes
 
     @property
     def lines_from_current(self) -> list[str]:
         """
         Array of the lines starting from the current line, until the last line.
         """
-        pass
+        return self.lines[self.cursor_position_row:]
 
     @property
     def line_count(self) -> int:
         """Return the number of lines in this document. If the document ends
         with a trailing \\n, that counts as the beginning of a new line."""
-        pass
+        return len(self.lines)
 
     @property
     def current_line(self) -> str:
         """Return the text on the line where the cursor is. (when the input
         consists of just one line, it equals `text`."""
-        pass
+        return self.lines[self.cursor_position_row]
 
     @property
     def leading_whitespace_in_current_line(self) -> str:
         """The leading whitespace in the left margin of the current line."""
-        pass
+        return self.current_line[:len(self.current_line) - len(self.current_line.lstrip())]
 
     def _get_char_relative_to_cursor(self, offset: int=0) -> str:
         """
         Return character relative to cursor position, or empty string
         """
-        pass
+        try:
+            return self._text[self._cursor_position + offset]
+        except IndexError:
+            return ''
 
     @property
     def on_first_line(self) -> bool:
         """
         True when we are at the first line.
         """
-        pass
+        return self.cursor_position_row == 0
 
     @property
     def on_last_line(self) -> bool:
         """
         True when we are at the last line.
         """
-        pass
+        return self.cursor_position_row == self.line_count - 1
 
     @property
     def cursor_position_row(self) -> int:
         """
         Current row. (0-based.)
         """
-        pass
+        return bisect.bisect_right(self._line_start_indexes, self._cursor_position) - 1
 
     @property
     def cursor_position_col(self) -> int:
         """
         Current column. (0-based.)
         """
-        pass
+        return self._cursor_position - self._line_start_indexes[self.cursor_position_row]
 
     def _find_line_start_index(self, index: int) -> tuple[int, int]:
         """
