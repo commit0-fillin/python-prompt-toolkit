@@ -33,18 +33,19 @@ class Clipboard(metaclass=ABCMeta):
 
         :param data: :class:`~.ClipboardData` instance.
         """
-        pass
+        self.data = data
 
     def set_text(self, text: str) -> None:
         """
         Shortcut for setting plain text on clipboard.
         """
-        pass
+        self.set_data(ClipboardData(text, SelectionType.CHARACTERS))
 
     def rotate(self) -> None:
         """
         For Emacs mode, rotate the kill ring.
         """
+        # This is a base implementation, specific clipboard classes may override this
         pass
 
     @abstractmethod
@@ -52,12 +53,20 @@ class Clipboard(metaclass=ABCMeta):
         """
         Return clipboard data.
         """
-        pass
+        return self.data
 
 class DummyClipboard(Clipboard):
     """
     Clipboard implementation that doesn't remember anything.
     """
+    def __init__(self):
+        self.data = ClipboardData()
+
+    def set_data(self, data: ClipboardData) -> None:
+        pass  # Dummy clipboard doesn't store anything
+
+    def get_data(self) -> ClipboardData:
+        return ClipboardData()  # Always return empty clipboard data
 
 class DynamicClipboard(Clipboard):
     """
@@ -68,3 +77,24 @@ class DynamicClipboard(Clipboard):
 
     def __init__(self, get_clipboard: Callable[[], Clipboard | None]) -> None:
         self.get_clipboard = get_clipboard
+
+    def set_data(self, data: ClipboardData) -> None:
+        clipboard = self.get_clipboard()
+        if clipboard:
+            clipboard.set_data(data)
+
+    def set_text(self, text: str) -> None:
+        clipboard = self.get_clipboard()
+        if clipboard:
+            clipboard.set_text(text)
+
+    def rotate(self) -> None:
+        clipboard = self.get_clipboard()
+        if clipboard:
+            clipboard.rotate()
+
+    def get_data(self) -> ClipboardData:
+        clipboard = self.get_clipboard()
+        if clipboard:
+            return clipboard.get_data()
+        return ClipboardData()  # Return empty clipboard data if no clipboard is available
