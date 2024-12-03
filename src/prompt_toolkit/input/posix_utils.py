@@ -41,4 +41,31 @@ class PosixStdinReader:
         the input stream was not yet closed. This means that something went
         wrong during the decoding.
         """
-        pass
+        # Check if the input is closed
+        if self.closed:
+            return ''
+
+        # Use select to check if there's data available to read
+        r, _, _ = select.select([self.stdin_fd], [], [], 0)
+        if not r:
+            return ''  # No data available
+
+        # Read raw bytes from stdin
+        try:
+            data = os.read(self.stdin_fd, count)
+        except OSError:
+            # Error reading from stdin
+            return ''
+
+        if not data:
+            # End of file reached
+            self.closed = True
+            return ''
+
+        # Decode the bytes to a string
+        try:
+            return self._stdin_decoder.decode(data)
+        except UnicodeDecodeError:
+            # If decoding fails, reset the decoder and return an empty string
+            self._stdin_decoder = self._stdin_decoder_cls(errors=self.errors)
+            return ''
