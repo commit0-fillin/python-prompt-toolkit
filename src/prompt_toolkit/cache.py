@@ -26,11 +26,30 @@ class SimpleCache(Generic[_T, _U]):
         If not found, call `getter_func` to resolve it, and put that on the top
         of the cache instead.
         """
-        pass
+        if key in self._data:
+            # Move the accessed key to the end of the deque (most recently used)
+            self._keys.remove(key)
+            self._keys.append(key)
+            return self._data[key]
+        
+        # Key not found, call getter_func
+        value = getter_func()
+        
+        # If cache is full, remove the oldest item
+        if len(self._data) >= self.maxsize:
+            oldest = self._keys.popleft()
+            del self._data[oldest]
+        
+        # Add new item to cache
+        self._data[key] = value
+        self._keys.append(key)
+        
+        return value
 
     def clear(self) -> None:
         """Clear cache."""
-        pass
+        self._data.clear()
+        self._keys.clear()
 _K = TypeVar('_K', bound=Tuple[Hashable, ...])
 _V = TypeVar('_V')
 
@@ -68,4 +87,14 @@ def memoized(maxsize: int=1024) -> Callable[[_F], _F]:
     """
     Memoization decorator for immutable classes and pure functions.
     """
-    pass
+    def decorator(func: _F) -> _F:
+        cache = SimpleCache(maxsize)
+        
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            key = (args, frozenset(kwargs.items()))
+            return cache.get(key, lambda: func(*args, **kwargs))
+        
+        return cast(_F, wrapper)
+    
+    return decorator
