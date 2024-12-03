@@ -19,7 +19,17 @@ def parse_color(text: str) -> str:
     Like in Pygments, but also support the ANSI color names.
     (These will map to the colors of the 16 color palette.)
     """
-    pass
+    if text.lower() in ANSI_COLOR_NAMES:
+        return text.lower()
+    if text.lower() in ANSI_COLOR_NAMES_ALIASES:
+        return ANSI_COLOR_NAMES_ALIASES[text.lower()]
+    if text.lower() in _named_colors_lowercase:
+        return _named_colors_lowercase[text.lower()]
+    if text.startswith('#'):
+        return text[1:]
+    if len(text) == 6 and all(c in '0123456789ABCDEFabcdef' for c in text):
+        return text.lower()
+    raise ValueError(f"Wrong color format: {text}")
 _EMPTY_ATTRS = Attrs(color=None, bgcolor=None, bold=None, underline=None, strike=None, italic=None, blink=None, reverse=None, hidden=None)
 
 def _expand_classname(classname: str) -> list[str]:
@@ -28,14 +38,27 @@ def _expand_classname(classname: str) -> list[str]:
 
     E.g. 'a.b.c' becomes ['a', 'a.b', 'a.b.c']
     """
-    pass
+    parts = classname.split('.')
+    return ['.'.join(parts[:i+1]) for i in range(len(parts))]
 
 def _parse_style_str(style_str: str) -> Attrs:
     """
     Take a style string, e.g.  'bg:red #88ff00 class:title'
     and return a `Attrs` instance.
     """
-    pass
+    attrs = _EMPTY_ATTRS
+    parts = style_str.split()
+    for part in parts:
+        if part.startswith('bg:'):
+            attrs = attrs._replace(bgcolor=parse_color(part[3:]))
+        elif part.startswith('fg:') or part.startswith('#'):
+            color = part[3:] if part.startswith('fg:') else part
+            attrs = attrs._replace(color=parse_color(color))
+        elif part in ('bold', 'italic', 'underline', 'strike', 'reverse', 'hidden'):
+            attrs = attrs._replace(**{part: True})
+        elif part == 'blink':
+            attrs = attrs._replace(blink=True)
+    return attrs
 CLASS_NAMES_RE = re.compile('^[a-z0-9.\\s_-]*$')
 
 class Priority(Enum):
@@ -96,13 +119,34 @@ class Style(BaseStyle):
         :param style_dict: Style dictionary.
         :param priority: `Priority` value.
         """
-        pass
+        if priority == Priority.DICT_KEY_ORDER:
+            return cls(list(style_dict.items()))
+        else:  # Priority.MOST_PRECISE
+            return cls(sorted(style_dict.items(), key=lambda item: -len(item[0].split())))
 
     def get_attrs_for_style_str(self, style_str: str, default: Attrs=DEFAULT_ATTRS) -> Attrs:
         """
         Get `Attrs` for the given style string.
         """
-        pass
+        attrs = default
+        class_names = set()
+
+        # Get class names from the style string.
+        parts = style_str.split()
+        for part in parts:
+            if part.startswith('class:'):
+                class_names.update(_expand_classname(part[6:]))
+
+        # Apply the styling.
+        for names, style_attrs in self.class_names_and_attrs:
+            if names <= class_names:
+                attrs = _merge_attrs([attrs, style_attrs])
+
+        # Apply inline styling.
+        inline_attrs = _parse_style_str(style_str)
+        attrs = _merge_attrs([attrs, inline_attrs])
+
+        return attrs
 _T = TypeVar('_T')
 
 def _merge_attrs(list_of_attrs: list[Attrs]) -> Attrs:
@@ -111,13 +155,21 @@ def _merge_attrs(list_of_attrs: list[Attrs]) -> Attrs:
     Every `Attr` in the list can override the styling of the previous one. So,
     the last one has highest priority.
     """
-    pass
+    result = Attrs(color=None, bgcolor=None, bold=None, underline=None,
+                   strike=None, italic=None, blink=None, reverse=None, hidden=None)
+
+    for attrs in list_of_attrs:
+        for attr_name, attr_value in attrs._asdict().items():
+            if attr_value is not None:
+                result = result._replace(**{attr_name: attr_value})
+
+    return result
 
 def merge_styles(styles: list[BaseStyle]) -> _MergedStyle:
     """
     Merge multiple `Style` objects.
     """
-    pass
+    return _MergedStyle(styles)
 
 class _MergedStyle(BaseStyle):
     """
@@ -133,4 +185,10 @@ class _MergedStyle(BaseStyle):
     @property
     def _merged_style(self) -> Style:
         """The `Style` object that has the other styles merged together."""
-        pass
+        def get_style() -> Style:
+            style_rules = []
+            for s in self.styles:
+                style_rules.extend(s.style_rules)
+            return Style(style_rules)
+
+        return self._style.get(tuple(s.invalidation_hash() for s in self.styles), get_style)
