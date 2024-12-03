@@ -45,4 +45,14 @@ def explode_text_fragments(fragments: Iterable[_T]) -> _ExplodedList[_T]:
 
     :param fragments: List of (style, text) tuples.
     """
-    pass
+    result = _ExplodedList()
+
+    for style, text, *rest in fragments:
+        if isinstance(text, str):
+            for c in text:
+                result.append((style, c, *rest))
+        else:
+            # If it's already exploded, just add it to the result
+            result.append((style, text, *rest))
+
+    return result
