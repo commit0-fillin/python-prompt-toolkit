@@ -29,7 +29,8 @@ class Windows10_Output:
         """
         Write to output stream and flush.
         """
-        pass
+        self.win32_output.flush()
+        self.vt100_output.flush()
 
     def __getattr__(self, name: str) -> Any:
         if name in ('get_size', 'get_rows_below_cursor_position', 'enable_mouse_support', 'disable_mouse_support', 'scroll_buffer_to_prompt', 'get_win32_screen_buffer_info', 'enable_bracketed_paste', 'disable_bracketed_paste'):
@@ -44,7 +45,9 @@ class Windows10_Output:
         Contrary to the Vt100 implementation, this doesn't depend on a $TERM
         variable.
         """
-        pass
+        if self.default_color_depth is not None:
+            return self.default_color_depth
+        return self.win32_output.get_default_color_depth()
 Output.register(Windows10_Output)
 
 def is_win_vt100_enabled() -> bool:
@@ -52,4 +55,13 @@ def is_win_vt100_enabled() -> bool:
     Returns True when we're running Windows and VT100 escape sequences are
     supported.
     """
-    pass
+    if not sys.platform.startswith('win'):
+        return False
+
+    hconsole = HANDLE(windll.kernel32.GetStdHandle(STD_OUTPUT_HANDLE))
+    mode = DWORD()
+    
+    if windll.kernel32.GetConsoleMode(hconsole, byref(mode)):
+        return bool(mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+    
+    return False
