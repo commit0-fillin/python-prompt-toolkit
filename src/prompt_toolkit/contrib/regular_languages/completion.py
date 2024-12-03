@@ -28,12 +28,32 @@ class GrammarCompleter(Completer):
         (The completer assumes that the cursor position was at the end of the
         input string.)
         """
-        pass
+        for variable in match.end_nodes():
+            completer = self.completers.get(variable.varname)
+            if completer:
+                # Yield all completions.
+                for completion in completer.get_completions(
+                    Document(variable.value, len(variable.value)),
+                    complete_event
+                ):
+                    yield Completion(
+                        text=completion.text,
+                        start_position=variable.start - match.string_before_cursor_len,
+                        display=completion.display,
+                        display_meta=completion.display_meta,
+                        style=completion.style,
+                    )
 
     def _remove_duplicates(self, items: Iterable[Completion]) -> list[Completion]:
         """
         Remove duplicates, while keeping the order.
-        (Sometimes we have duplicates, because the there several matches of the
+        (Sometimes we have duplicates, because there are several matches of the
         same grammar, each yielding similar completions.)
         """
-        pass
+        result = []
+        seen = set()
+        for item in items:
+            if item.text not in seen:
+                result.append(item)
+                seen.add(item.text)
+        return result
