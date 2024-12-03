@@ -27,14 +27,19 @@ def style_from_pygments_cls(pygments_style_cls: type[PygmentsStyle]) -> Style:
 
     :param pygments_style_cls: Pygments style class to start from.
     """
-    pass
+    pygments_style = pygments_style_cls()
+    pygments_dict = pygments_style.styles
+    return style_from_pygments_dict(pygments_dict)
 
 def style_from_pygments_dict(pygments_dict: dict[Token, str]) -> Style:
     """
     Create a :class:`.Style` instance from a Pygments style dictionary.
     (One that maps Token objects to style strings.)
     """
-    pass
+    style_dict = {}
+    for token, style in pygments_dict.items():
+        style_dict[pygments_token_to_classname(token)] = style
+    return Style.from_dict(style_dict)
 
 def pygments_token_to_classname(token: Token) -> str:
     """
@@ -43,4 +48,4 @@ def pygments_token_to_classname(token: Token) -> str:
     (Our Pygments lexer will also turn the tokens that pygments produces in a
     prompt_toolkit list of fragments that match these styling rules.)
     """
-    pass
+    return 'pygments.' + '.'.join(token).lower()
