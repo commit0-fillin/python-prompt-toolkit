@@ -10,7 +10,9 @@ def to_filter(bool_or_filter: FilterOrBool) -> Filter:
     Accept both booleans and Filters as input and
     turn it into a Filter.
     """
-    pass
+    if isinstance(bool_or_filter, bool):
+        return _bool_to_filter[bool_or_filter]
+    return bool_or_filter
 
 def is_true(value: FilterOrBool) -> bool:
     """
@@ -18,4 +20,6 @@ def is_true(value: FilterOrBool) -> bool:
 
     :param value: Boolean or `Filter` instance.
     """
-    pass
+    if isinstance(value, bool):
+        return value
+    return value()
