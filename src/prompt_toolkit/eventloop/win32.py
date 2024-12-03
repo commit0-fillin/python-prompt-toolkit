@@ -31,11 +31,33 @@ def wait_for_handles(handles: list[HANDLE], timeout: int=INFINITE) -> HANDLE | N
     This function returns either `None` or one of the given `HANDLE` objects.
     (The return value can be tested with the `is` operator.)
     """
-    pass
+    if not SPHINX_AUTODOC_RUNNING:
+        arr = (HANDLE * len(handles))(*handles)
+        ret = windll.kernel32.WaitForMultipleObjects(
+            len(handles),
+            arr,
+            BOOL(False),
+            DWORD(timeout)
+        )
+        if ret == WAIT_TIMEOUT:
+            return None
+        else:
+            return handles[ret]
+    return None
 
 def create_win32_event() -> HANDLE:
     """
-    Creates a Win32 unnamed Event .
+    Creates a Win32 unnamed Event.
     http://msdn.microsoft.com/en-us/library/windows/desktop/ms682396(v=vs.85).aspx
     """
-    pass
+    if not SPHINX_AUTODOC_RUNNING:
+        handle = windll.kernel32.CreateEventA(
+            SECURITY_ATTRIBUTES(),
+            BOOL(True),   # Manual reset event
+            BOOL(False),  # Initial state = nonsignaled
+            None          # Unnamed event object
+        )
+        if handle == 0:
+            raise WindowsError(windll.kernel32.GetLastError())
+        return handle
+    return HANDLE(0)
