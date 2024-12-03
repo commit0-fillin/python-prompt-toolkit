@@ -19,15 +19,20 @@ class _Pipe:
 
     def close_read(self) -> None:
         """Close read-end if not yet closed."""
-        pass
+        if not self._read_closed:
+            os.close(self.read_fd)
+            self._read_closed = True
 
     def close_write(self) -> None:
         """Close write-end if not yet closed."""
-        pass
+        if not self._write_closed:
+            os.close(self.write_fd)
+            self._write_closed = True
 
     def close(self) -> None:
         """Close both read and write ends."""
-        pass
+        self.close_read()
+        self.close_write()
 
 class PosixPipeInput(Vt100Input, PipeInput):
     """
@@ -60,14 +65,14 @@ class PosixPipeInput(Vt100Input, PipeInput):
 
     def send_text(self, data: str) -> None:
         """Send text to the input."""
-        pass
+        os.write(self.pipe.write_fd, data.encode(self.stdin.encoding))
 
     def close(self) -> None:
         """Close pipe fds."""
-        pass
+        self.pipe.close()
 
     def typeahead_hash(self) -> str:
         """
         This needs to be unique for every `PipeInput`.
         """
-        pass
+        return f'pipe-input-{self._id}'
