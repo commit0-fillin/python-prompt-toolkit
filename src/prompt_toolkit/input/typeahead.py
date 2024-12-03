@@ -42,16 +42,19 @@ def store_typeahead(input_obj: Input, key_presses: list[KeyPress]) -> None:
     """
     Insert typeahead key presses for the given input.
     """
-    pass
+    _buffer[input_obj.typeahead_hash()].extend(key_presses)
 
 def get_typeahead(input_obj: Input) -> list[KeyPress]:
     """
     Retrieve typeahead and reset the buffer for this input.
     """
-    pass
+    typeahead_hash = input_obj.typeahead_hash()
+    result = _buffer[typeahead_hash]
+    _buffer[typeahead_hash] = []
+    return result
 
 def clear_typeahead(input_obj: Input) -> None:
     """
     Clear typeahead buffer.
     """
-    pass
+    _buffer[input_obj.typeahead_hash()] = []
