@@ -51,6 +51,25 @@ class NestedCompleter(Completer):
         point. If all values in the dictionary are None, it is also possible to
         use a set instead.
 
-        Values in this data structure can be a completers as well.
+        Values in this data structure can be completers as well.
         """
-        pass
+        def get_completer(data: Any) -> Completer | None:
+            if isinstance(data, Completer):
+                return data
+            elif isinstance(data, dict):
+                return cls.from_nested_dict(data)
+            elif isinstance(data, set):
+                return WordCompleter(list(data))
+            elif data is None:
+                return None
+            else:
+                raise TypeError(f"Invalid data type: {type(data)}")
+
+        options = {}
+        for key, value in data.items():
+            if isinstance(key, str):
+                options[key] = get_completer(value)
+            else:
+                raise TypeError(f"Key should be a string, got: {type(key)}")
+
+        return cls(options)
