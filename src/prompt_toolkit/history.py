@@ -38,18 +38,24 @@ class History(metaclass=ABCMeta):
         were were appended to the history will be incorporated next time this
         method is called.
         """
-        pass
+        if not self._loaded:
+            self._loaded_strings = list(self.load_history_strings())
+            self._loaded = True
+
+        for item in reversed(self._loaded_strings):
+            yield item
 
     def get_strings(self) -> list[str]:
         """
         Get the strings from the history that are loaded so far.
         (In order. Oldest item first.)
         """
-        pass
+        return self._loaded_strings.copy()
 
     def append_string(self, string: str) -> None:
         """Add string to the history."""
-        pass
+        self._loaded_strings.append(string)
+        self.store_string(string)
 
     @abstractmethod
     def load_history_strings(self) -> Iterable[str]:
@@ -60,14 +66,14 @@ class History(metaclass=ABCMeta):
         important. (The history can already be used, even when it's only
         partially loaded.)
         """
-        pass
+        raise NotImplementedError("Subclasses should implement this method")
 
     @abstractmethod
     def store_string(self, string: str) -> None:
         """
         Store the string in persistent storage.
         """
-        pass
+        raise NotImplementedError("Subclasses should implement this method")
 
 class ThreadedHistory(History):
     """
@@ -91,7 +97,31 @@ class ThreadedHistory(History):
         Like `History.load(), but call `self.load_history_strings()` in a
         background thread.
         """
-        pass
+        def load_in_thread() -> None:
+            with self._lock:
+                strings = list(self.history.load_history_strings())
+                self._loaded_strings.extend(strings)
+                for event in self._string_load_events:
+                    event.set()
+
+        if self._load_thread is None:
+            self._load_thread = threading.Thread(target=load_in_thread)
+            self._load_thread.daemon = True
+            self._load_thread.start()
+
+        loop = get_running_loop()
+        while True:
+            with self._lock:
+                if self._loaded_strings:
+                    string = self._loaded_strings.pop()
+                    yield string
+                elif self._load_thread.is_alive():
+                    event = threading.Event()
+                    self._string_load_events.append(event)
+                else:
+                    break
+
+            await loop.run_in_executor(None, event.wait)
 
     def __repr__(self) -> str:
         return f'ThreadedHistory({self.history!r})'
