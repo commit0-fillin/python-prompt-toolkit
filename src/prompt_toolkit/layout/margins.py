@@ -26,7 +26,7 @@ class Margin(metaclass=ABCMeta):
             a :class:`.UIContent` instance. This can be used for instance to
             obtain the number of lines.
         """
-        pass
+        return 0  # Default implementation returns 0 width
 
     @abstractmethod
     def create_margin(self, window_render_info: WindowRenderInfo, width: int, height: int) -> StyleAndTextTuples:
@@ -44,7 +44,7 @@ class Margin(metaclass=ABCMeta):
         :param height: The height that's available for this margin. (The height
             of the :class:`~prompt_toolkit.layout.containers.Window`.)
         """
-        pass
+        return []  # Default implementation returns an empty list
 
 class NumberedMargin(Margin):
     """
