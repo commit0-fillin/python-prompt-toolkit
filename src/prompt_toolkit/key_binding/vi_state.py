@@ -42,15 +42,25 @@ class ViState:
     @property
     def input_mode(self) -> InputMode:
         """Get `InputMode`."""
-        pass
+        return self.__input_mode
 
     @input_mode.setter
     def input_mode(self, value: InputMode) -> None:
         """Set `InputMode`."""
-        pass
+        self.__input_mode = value
 
     def reset(self) -> None:
         """
         Reset state, go back to the given mode. INSERT by default.
         """
-        pass
+        self.__input_mode = InputMode.INSERT
+        self.last_character_find = None
+        self.operator_func = None
+        self.operator_arg = None
+        self.named_registers.clear()
+        self.waiting_for_digraph = False
+        self.digraph_symbol1 = None
+        self.tilde_operator = False
+        self.recording_register = None
+        self.current_recording = ''
+        self.temporary_navigation_mode = False
