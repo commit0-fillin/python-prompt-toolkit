@@ -54,17 +54,19 @@ class Completion:
     @property
     def display_text(self) -> str:
         """The 'display' field as plain text."""
-        pass
+        return ''.join(text for _, text in self.display)
 
     @property
     def display_meta(self) -> StyleAndTextTuples:
         """Return meta-text. (This is lazy when using a callable)."""
-        pass
+        if callable(self._display_meta):
+            return self._display_meta()
+        return self._display_meta
 
     @property
     def display_meta_text(self) -> str:
         """The 'meta' field as plain text."""
-        pass
+        return ''.join(text for _, text in self.display_meta) if self.display_meta else ''
 
     def new_completion_from_position(self, position: int) -> Completion:
         """
@@ -73,7 +75,14 @@ class Completion:
         it needs to have a list of new completions after inserting the common
         prefix.
         """
-        pass
+        return Completion(
+            text=self.text[position:],
+            start_position=self.start_position + position,
+            display=self.display,
+            display_meta=self._display_meta,
+            style=self.style,
+            selected_style=self.selected_style
+        )
 
 class CompleteEvent:
     """
@@ -117,7 +126,7 @@ class Completer(metaclass=ABCMeta):
         :param document: :class:`~prompt_toolkit.document.Document` instance.
         :param complete_event: :class:`.CompleteEvent` instance.
         """
-        pass
+        raise NotImplementedError
 
     async def get_completions_async(self, document: Document, complete_event: CompleteEvent) -> AsyncGenerator[Completion, None]:
         """
@@ -126,7 +135,8 @@ class Completer(metaclass=ABCMeta):
 
         Asynchronous generator of :class:`.Completion` objects.
         """
-        pass
+        for completion in self.get_completions(document, complete_event):
+            yield completion
 
 class ThreadedCompleter(Completer):
     """
@@ -146,7 +156,8 @@ class ThreadedCompleter(Completer):
         """
         Asynchronous generator of completions.
         """
-        pass
+        async for completion in generator_to_async_generator(self.completer.get_completions(document, complete_event)):
+            yield completion
 
     def __repr__(self) -> str:
         return f'ThreadedCompleter({self.completer!r})'
@@ -204,10 +215,26 @@ def merge_completers(completers: Sequence[Completer], deduplicate: bool=False) -
         so that completions that would result in the same text will be
         deduplicated.
     """
-    pass
+    merged = _MergedCompleter(completers)
+    if deduplicate:
+        from .deduplicate import DeduplicateCompleter
+        return DeduplicateCompleter(merged)
+    return merged
 
 def get_common_complete_suffix(document: Document, completions: Sequence[Completion]) -> str:
     """
     Return the common prefix for all completions.
     """
-    pass
+    if not completions:
+        return ''
+
+    common_suffix = completions[0].text
+
+    for completion in completions[1:]:
+        common_suffix = common_suffix[:len(completion.text)]
+        for i in range(len(common_suffix)):
+            if common_suffix[i] != completion.text[i]:
+                common_suffix = common_suffix[:i]
+                break
+
+    return common_suffix
