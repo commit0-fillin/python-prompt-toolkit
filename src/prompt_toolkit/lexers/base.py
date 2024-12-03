@@ -23,14 +23,14 @@ class Lexer(metaclass=ABCMeta):
         XXX: Note that in the past, this was supposed to return a list
              of ``(Token, text)`` tuples, just like a Pygments lexer.
         """
-        pass
+        raise NotImplementedError("Subclasses should implement this method")
 
     def invalidation_hash(self) -> Hashable:
         """
         When this changes, `lex_document` could give a different output.
         (Only used for `DynamicLexer`.)
         """
-        pass
+        return None
 
 class SimpleLexer(Lexer):
     """
