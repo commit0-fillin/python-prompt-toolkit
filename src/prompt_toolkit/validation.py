@@ -92,7 +92,7 @@ class _ValidatorFromCallable(Validator):
         self.move_cursor_to_end = move_cursor_to_end
 
     def __repr__(self) -> str:
-        return f'Validator.from_callable({self.func!r})'
+        return f'Validator.from_callable(func={self.func!r}, error_message={self.error_message!r}, move_cursor_to_end={self.move_cursor_to_end!r})'
 
 class ThreadedValidator(Validator):
     """
