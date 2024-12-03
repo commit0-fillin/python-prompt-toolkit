@@ -49,7 +49,28 @@ class FuzzyCompleter(Completer):
         """
         Generate formatted text for the display label.
         """
-        pass
+        from prompt_toolkit.formatted_text import merge_formatted_text, FormattedText
+
+        match_start = fuzzy_match.start_pos
+        match_end = match_start + fuzzy_match.match_length
+        result = []
+
+        # Text before match
+        if match_start > 0:
+            result.append(('', fuzzy_match.completion.display_text[:match_start]))
+
+        # Matched text
+        result.append(('[SetColor]', fuzzy_match.completion.display_text[match_start:match_end]))
+
+        # Text after match
+        if match_end < len(fuzzy_match.completion.display_text):
+            result.append(('', fuzzy_match.completion.display_text[match_end:]))
+
+        return merge_formatted_text([
+            FormattedText(result),
+            ('', ' '),
+            fuzzy_match.completion.display_meta
+        ])
 
 class FuzzyWordCompleter(Completer):
     """
