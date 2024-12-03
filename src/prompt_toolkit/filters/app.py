@@ -15,73 +15,77 @@ def has_focus(value: FocusableElement) -> Condition:
     """
     Enable when this buffer has the focus.
     """
-    pass
+    @Condition
+    def has_focus_filter() -> bool:
+        return get_app().layout.current_control == value
+    return has_focus_filter
 
 @Condition
 def buffer_has_focus() -> bool:
     """
     Enabled when the currently focused control is a `BufferControl`.
     """
-    pass
+    return hasattr(get_app().layout.current_control, 'buffer')
 
 @Condition
 def has_selection() -> bool:
     """
     Enable when the current buffer has a selection.
     """
-    pass
+    return bool(get_app().current_buffer.selection_state)
 
 @Condition
 def has_suggestion() -> bool:
     """
     Enable when the current buffer has a suggestion.
     """
-    pass
+    return get_app().current_buffer.suggestion is not None
 
 @Condition
 def has_completions() -> bool:
     """
     Enable when the current buffer has completions.
     """
-    pass
+    return bool(get_app().current_buffer.completer)
 
 @Condition
 def completion_is_selected() -> bool:
     """
     True when the user selected a completion.
     """
-    pass
+    return get_app().current_buffer.complete_state is not None and \
+           get_app().current_buffer.complete_state.current_completion is not None
 
 @Condition
 def is_read_only() -> bool:
     """
     True when the current buffer is read only.
     """
-    pass
+    return get_app().current_buffer.read_only()
 
 @Condition
 def is_multiline() -> bool:
     """
     True when the current buffer has been marked as multiline.
     """
-    pass
+    return get_app().current_buffer.multiline
 
 @Condition
 def has_validation_error() -> bool:
     """Current buffer has validation error."""
-    pass
+    return get_app().current_buffer.validation_error is not None
 
 @Condition
 def has_arg() -> bool:
     """Enable when the input processor has an 'arg'."""
-    pass
+    return get_app().key_processor.arg is not None
 
 @Condition
 def is_done() -> bool:
     """
     True when the CLI is returning, aborting or exiting.
     """
-    pass
+    return get_app().is_done
 
 @Condition
 def renderer_height_is_known() -> bool:
@@ -94,43 +98,47 @@ def renderer_height_is_known() -> bool:
     until we receive the height, in order to avoid flickering -- first drawing
     somewhere in the middle, and then again at the bottom.)
     """
-    pass
+    return get_app().renderer.height_is_known
 
 @memoized()
 def in_editing_mode(editing_mode: EditingMode) -> Condition:
     """
     Check whether a given editing mode is active. (Vi or Emacs.)
     """
-    pass
+    @Condition
+    def in_editing_mode_filter() -> bool:
+        return get_app().editing_mode == editing_mode
+    return in_editing_mode_filter
 
 @Condition
 def vi_navigation_mode() -> bool:
     """
     Active when the set for Vi navigation key bindings are active.
     """
-    pass
+    app = get_app()
+    return app.editing_mode == EditingMode.VI and not app.vi_state.input_mode
 
 @Condition
 def vi_recording_macro() -> bool:
     """When recording a Vi macro."""
-    pass
+    return get_app().vi_state.recording_macro
 
 @Condition
 def emacs_mode() -> bool:
     """When the Emacs bindings are active."""
-    pass
+    return get_app().editing_mode == EditingMode.EMACS
 
 @Condition
 def is_searching() -> bool:
     """When we are searching."""
-    pass
+    return get_app().layout.is_searching
 
 @Condition
 def control_is_searchable() -> bool:
     """When the current UIControl is searchable."""
-    pass
+    return hasattr(get_app().layout.current_control, 'search_buffer')
 
 @Condition
 def vi_search_direction_reversed() -> bool:
     """When the '/' and '?' key bindings for Vi-style searching have been reversed."""
-    pass
+    return get_app().vi_search_direction_reversed
