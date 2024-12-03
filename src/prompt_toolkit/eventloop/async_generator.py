@@ -13,7 +13,10 @@ _T_Generator = TypeVar('_T_Generator', bound=AsyncGenerator[Any, None])
 @asynccontextmanager
 async def aclosing(thing: _T_Generator) -> AsyncGenerator[_T_Generator, None]:
     """Similar to `contextlib.aclosing`, in Python 3.10."""
-    pass
+    try:
+        yield thing
+    finally:
+        await thing.aclose()
 DEFAULT_BUFFER_SIZE: int = 1000
 _T = TypeVar('_T')
 
@@ -31,4 +34,25 @@ async def generator_to_async_generator(get_iterable: Callable[[], Iterable[_T]],
     :param buffer_size: Size of the queue between the async consumer and the
         synchronous generator that produces items.
     """
-    pass
+    queue: Queue[_T | _Done] = Queue(maxsize=buffer_size)
+    loop = get_running_loop()
+
+    def producer() -> None:
+        try:
+            for item in get_iterable():
+                while True:
+                    try:
+                        queue.put(item, block=False)
+                        break
+                    except Full:
+                        time.sleep(0.01)
+        finally:
+            queue.put(_Done(), block=True)
+
+    await run_in_executor_with_context(producer)
+
+    while True:
+        item = await loop.run_in_executor(None, queue.get)
+        if isinstance(item, _Done):
+            break
+        yield item
