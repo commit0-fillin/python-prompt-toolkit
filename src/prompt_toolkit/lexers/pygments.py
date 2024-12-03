@@ -57,14 +57,33 @@ class RegexSync(SyntaxSync):
         """
         Scan backwards, and find a possible position to start.
         """
-        pass
+        text = document.text
+        lines = text.splitlines()
+        
+        # Start searching from the given line number
+        for i in range(lineno, max(-1, lineno - self.MAX_BACKWARDS), -1):
+            match = self._compiled_pattern.search(lines[i])
+            if match:
+                return i, 0
+        
+        # If no match found, return a position close to the beginning
+        return max(0, lineno - self.FROM_START_IF_NO_SYNC_POS_FOUND), 0
 
     @classmethod
     def from_pygments_lexer_cls(cls, lexer_cls: PygmentsLexerCls) -> RegexSync:
         """
         Create a :class:`.RegexSync` instance for this Pygments lexer class.
         """
-        pass
+        patterns = []
+        for attr in dir(lexer_cls):
+            value = getattr(lexer_cls, attr)
+            if isinstance(value, str) and attr.startswith('regex_'):
+                patterns.append(f'(?:{value})')
+        
+        if patterns:
+            return cls('|'.join(patterns))
+        else:
+            return cls('.*')
 
 class _TokenCache(Dict[Tuple[str, ...], str]):
     """
@@ -118,11 +137,33 @@ class PygmentsLexer(Lexer):
         """
         Create a `Lexer` from a filename.
         """
-        pass
+        from pygments.lexers import get_lexer_for_filename
+        from pygments.util import ClassNotFound
+
+        try:
+            pygments_lexer = get_lexer_for_filename(filename)
+        except ClassNotFound:
+            return SimpleLexer()
+        
+        return cls(pygments_lexer.__class__, sync_from_start=sync_from_start)
 
     def lex_document(self, document: Document) -> Callable[[int], StyleAndTextTuples]:
         """
         Create a lexer function that takes a line number and returns the list
         of (style_str, text) tuples as the Pygments lexer returns for that line.
         """
-        pass
+        text = document.text
+
+        def get_line(lineno: int) -> StyleAndTextTuples:
+            if self.sync_from_start():
+                start_pos = 0
+            else:
+                start_pos, _ = self.syntax_sync.get_sync_start_position(document, lineno)
+
+            start = document.translate_row_col_to_index(start_pos, 0)
+            end = document.translate_row_col_to_index(lineno + 1, 0)
+
+            tokens = list(self.pygments_lexer.get_tokens_unprocessed(text[start:end]))
+            return [(pygments_token_to_classname(token), value) for _, token, value in tokens]
+
+        return get_line
