@@ -26,7 +26,14 @@ class Margin(metaclass=ABCMeta):
             a :class:`.UIContent` instance. This can be used for instance to
             obtain the number of lines.
         """
-        return 0  # Default implementation returns 0 width
+        ui_content = get_ui_content()
+        line_count = ui_content.line_count
+        last_line_number = line_count - 1
+
+        # Calculate the number of digits needed to represent the last line number
+        if last_line_number == 0:
+            return 2  # Single digit plus one space
+        return len(str(last_line_number)) + 1  # Add 1 for the space after the number
 
     @abstractmethod
     def create_margin(self, window_render_info: WindowRenderInfo, width: int, height: int) -> StyleAndTextTuples:
