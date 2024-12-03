@@ -65,6 +65,9 @@ class Binding:
         self.save_before = save_before
         self.record_in_macro = to_filter(record_in_macro)
 
+    def call(self, event: KeyPressEvent) -> NotImplementedOrNone:
+        return self.handler(event)
+
     def __repr__(self) -> str:
         return '{}(keys={!r}, handler={!r})'.format(self.__class__.__name__, self.keys, self.handler)
 KeysTuple = Tuple[Union[Keys, str], ...]
