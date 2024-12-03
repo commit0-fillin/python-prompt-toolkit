@@ -17,7 +17,7 @@ def abort_search(event: E) -> None:
     line.
     (Usually bound to ControlG/ControlC.)
     """
-    pass
+    search.stop_search()
 
 @key_binding(filter=is_searching)
 def accept_search(event: E) -> None:
@@ -26,7 +26,7 @@ def accept_search(event: E) -> None:
     isearch would be too complicated.)
     (Usually bound to Enter.)
     """
-    pass
+    search.accept_search()
 
 @key_binding(filter=control_is_searchable)
 def start_reverse_incremental_search(event: E) -> None:
@@ -34,7 +34,7 @@ def start_reverse_incremental_search(event: E) -> None:
     Enter reverse incremental search.
     (Usually ControlR.)
     """
-    pass
+    search.start_search(direction=search.SearchDirection.BACKWARD)
 
 @key_binding(filter=control_is_searchable)
 def start_forward_incremental_search(event: E) -> None:
@@ -42,32 +42,35 @@ def start_forward_incremental_search(event: E) -> None:
     Enter forward incremental search.
     (Usually ControlS.)
     """
-    pass
+    search.start_search(direction=search.SearchDirection.FORWARD)
 
 @key_binding(filter=is_searching)
 def reverse_incremental_search(event: E) -> None:
     """
     Apply reverse incremental search, but keep search buffer focused.
     """
-    pass
+    search.do_incremental_search(search.SearchDirection.BACKWARD)
 
 @key_binding(filter=is_searching)
 def forward_incremental_search(event: E) -> None:
     """
     Apply forward incremental search, but keep search buffer focused.
     """
-    pass
+    search.do_incremental_search(search.SearchDirection.FORWARD)
 
 @Condition
 def _previous_buffer_is_returnable() -> bool:
     """
     True if the previously focused buffer has a return handler.
     """
-    pass
+    app = get_app()
+    prev_control = app.layout.previous_control
+    return prev_control is not None and prev_control.buffer.is_returnable
 
 @key_binding(filter=is_searching & _previous_buffer_is_returnable)
 def accept_search_and_accept_input(event: E) -> None:
     """
     Accept the search operation first, then accept the input.
     """
-    pass
+    search.accept_search()
+    event.current_buffer.validate_and_handle()
