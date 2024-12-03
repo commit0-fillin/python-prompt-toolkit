@@ -37,45 +37,129 @@ class CompletionsMenuControl(UIControl):
         """
         Create a UIContent object for this control.
         """
-        pass
+        app = get_app()
+        complete_state = app.current_buffer.complete_state
+        if complete_state is None:
+            return UIContent()
+
+        def get_line(i: int) -> StyleAndTextTuples:
+            if i >= len(complete_state.completions):
+                return []
+            completion = complete_state.completions[i]
+            is_current = i == complete_state.complete_index
+
+            menu_width = self._get_menu_width(width, complete_state)
+            menu_meta_width = self._get_menu_meta_width(width, complete_state)
+
+            fragments = _get_menu_item_fragments(completion, is_current, menu_width)
+
+            if menu_meta_width:
+                fragments += _get_menu_item_fragments(completion, is_current, menu_meta_width, space_after=True)
+
+            return fragments
+
+        return UIContent(
+            get_line=get_line,
+            line_count=len(complete_state.completions),
+            show_cursor=False,
+        )
 
     def _show_meta(self, complete_state: CompletionState) -> bool:
         """
         Return ``True`` if we need to show a column with meta information.
         """
-        pass
+        return any(c.display_meta for c in complete_state.completions)
 
     def _get_menu_width(self, max_width: int, complete_state: CompletionState) -> int:
         """
         Return the width of the main column.
         """
-        pass
+        if complete_state.completions:
+            max_completion_width = max(get_cwidth(c.display_text) for c in complete_state.completions)
+            return min(max_completion_width, max_width)
+        return 0
 
     def _get_menu_meta_width(self, max_width: int, complete_state: CompletionState) -> int:
         """
         Return the width of the meta column.
         """
-        pass
+        if self._show_meta(complete_state):
+            max_meta_width = max(get_cwidth(c.display_meta or '') for c in complete_state.completions)
+            return min(max_meta_width, max_width // 2)
+        return 0
 
     def mouse_handler(self, mouse_event: MouseEvent) -> NotImplementedOrNone:
         """
         Handle mouse events: clicking and scrolling.
         """
-        pass
+        app = get_app()
+        complete_state = app.current_buffer.complete_state
+
+        if complete_state is None:
+            return NotImplemented
+
+        if mouse_event.event_type == MouseEventType.MOUSE_UP:
+            index = mouse_event.position.y
+
+            if 0 <= index < len(complete_state.completions):
+                complete_state.go_to_index(index)
+                app.current_buffer.apply_completion(complete_state.current_completion)
+                return None
+
+        elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            complete_state.complete_next()
+            return None
+
+        elif mouse_event.event_type == MouseEventType.SCROLL_UP:
+            complete_state.complete_previous()
+            return None
+
+        return NotImplemented
 
 def _get_menu_item_fragments(completion: Completion, is_current_completion: bool, width: int, space_after: bool=False) -> StyleAndTextTuples:
     """
     Get the style/text tuples for a menu item, styled and trimmed to the given
     width.
     """
-    pass
+    style = 'class:completion-menu.completion'
+    if is_current_completion:
+        style += '.current'
+
+    text = completion.display_text
+    if len(text) > width:
+        text = text[:width - 3] + '...'
+    else:
+        text = text.ljust(width)
+
+    fragments = [(style, text)]
+
+    if space_after:
+        fragments.append(('', ' '))
+
+    return fragments
 
 def _trim_formatted_text(formatted_text: StyleAndTextTuples, max_width: int) -> tuple[StyleAndTextTuples, int]:
     """
     Trim the text to `max_width`, append dots when the text is too long.
     Returns (text, width) tuple.
     """
-    pass
+    total_width = 0
+    result: StyleAndTextTuples = []
+
+    for style, text in formatted_text:
+        # Calculate new width.
+        new_width = total_width + get_cwidth(text)
+
+        if new_width < max_width:
+            result.append((style, text))
+            total_width = new_width
+        else:
+            # Trim.
+            result.append((style, text[:max_width - total_width - 3] + '...'))
+            total_width = max_width
+            break
+
+    return result, total_width
 
 class CompletionsMenu(ConditionalContainer):
 
@@ -127,38 +211,119 @@ class MultiColumnCompletionMenuControl(UIControl):
         Preferred width: prefer to use at least min_rows, but otherwise as much
         as possible horizontally.
         """
-        pass
+        complete_state = get_app().current_buffer.complete_state
+        if complete_state is None:
+            return 0
+
+        column_width = self._get_column_width(complete_state)
+        result = int(column_width * min(len(complete_state.completions), self.min_rows))
+        return min(result, max_available_width)
 
     def preferred_height(self, width: int, max_available_height: int, wrap_lines: bool, get_line_prefix: GetLinePrefixCallable | None) -> int | None:
         """
         Preferred height: as much as needed in order to display all the completions.
         """
-        pass
+        complete_state = get_app().current_buffer.complete_state
+        if complete_state is None:
+            return 0
+
+        column_width = self._get_column_width(complete_state)
+        column_count = max(1, width // column_width)
+        row_count = int(ceil(len(complete_state.completions) / float(column_count)))
+        return min(row_count, max_available_height)
 
     def create_content(self, width: int, height: int) -> UIContent:
         """
         Create a UIContent object for this menu.
         """
-        pass
+        complete_state = get_app().current_buffer.complete_state
+        if complete_state is None:
+            return UIContent()
+
+        column_width = self._get_column_width(complete_state)
+        column_count = max(1, width // column_width)
+
+        visible_columns = min(column_count, int(ceil(len(complete_state.completions) / float(height))))
+        visible_width = visible_columns * column_width
+
+        def get_line(i: int) -> StyleAndTextTuples:
+            result: StyleAndTextTuples = []
+            for c in range(visible_columns):
+                index = c * height + i
+                if index >= len(complete_state.completions):
+                    return result
+
+                completion = complete_state.completions[index]
+                style = 'class:completion-menu.completion'
+                if index == complete_state.complete_index:
+                    style += '.current'
+
+                text = completion.display_text
+                text = text[:column_width].ljust(column_width)
+
+                result.append((style, text))
+            return result
+
+        return UIContent(
+            get_line=get_line,
+            line_count=height,
+            show_cursor=False,
+        )
 
     def _get_column_width(self, completion_state: CompletionState) -> int:
         """
         Return the width of each column.
         """
-        pass
+        max_width = max(get_cwidth(c.display_text) for c in completion_state.completions)
+        return max(self.suggested_max_column_width, max_width)
 
     def mouse_handler(self, mouse_event: MouseEvent) -> NotImplementedOrNone:
         """
         Handle scroll and click events.
         """
-        pass
+        app = get_app()
+        completion_state = app.current_buffer.complete_state
+        if completion_state is None:
+            return NotImplemented
+
+        if mouse_event.event_type == MouseEventType.MOUSE_UP:
+            column_width = self._get_column_width(completion_state)
+            column_count = mouse_event.position.x // column_width
+            row_count = mouse_event.position.y
+
+            index = column_count * self._rendered_rows + row_count
+
+            if 0 <= index < len(completion_state.completions):
+                completion_state.go_to_index(index)
+                app.current_buffer.apply_completion(completion_state.current_completion)
+                return None
+
+        elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            self._scroll_down()
+            return None
+
+        elif mouse_event.event_type == MouseEventType.SCROLL_UP:
+            self._scroll_up()
+            return None
+
+        return NotImplemented
 
     def get_key_bindings(self) -> KeyBindings:
         """
         Expose key bindings that handle the left/right arrow keys when the menu
         is displayed.
         """
-        pass
+        kb = KeyBindings()
+
+        @kb.add('left', filter=~has_completions)
+        def _(event: E) -> None:
+            self._scroll_left()
+
+        @kb.add('right', filter=~has_completions)
+        def _(event: E) -> None:
+            self._scroll_right()
+
+        return kb
 
 class MultiColumnCompletionsMenu(HSplit):
     """
